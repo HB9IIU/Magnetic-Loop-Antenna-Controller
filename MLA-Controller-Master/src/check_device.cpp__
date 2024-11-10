@@ -1,0 +1,51 @@
+#include <Arduino.h>
+#include <LittleFS.h>
+
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+  
+  Serial.println();
+  Serial.println("ESP32 Chip Information:");
+  
+  // Print chip model
+  esp_chip_info_t chip_info;
+  esp_chip_info(&chip_info);
+  Serial.printf("Chip model: %s\n", (chip_info.model == CHIP_ESP32) ? "ESP32" : "Unknown");
+  
+  // Print number of cores
+  Serial.printf("Number of cores: %d\n", chip_info.cores);
+
+  // Print chip revision
+  Serial.printf("Chip revision: %d\n", chip_info.revision);
+  
+  // Print flash size
+  Serial.printf("Flash size: %dMB\n", spi_flash_get_chip_size() / (1024 * 1024));
+
+  // Initialize LittleFS
+  if (!LittleFS.begin(true)) { // 'true' will format the filesystem if mounting fails
+    Serial.println("Failed to mount LittleFS, formatting...");
+  } else {
+    Serial.println("LittleFS mounted successfully");
+  }
+
+  // Check if the file exists
+  if (LittleFS.exists("/TouchCalData")) {
+    Serial.println("TouchCalData file exists");
+  } else {
+    Serial.println("TouchCalData file does not exist, creating it...");
+
+    // Attempt to create the file
+    fs::File f = LittleFS.open("/TouchCalData", "w");
+    if (!f) {
+      Serial.println("Failed to create TouchCalData file");
+    } else {
+      Serial.println("TouchCalData file created successfully");
+      f.close(); // Close the file after creation
+    }
+  }
+}
+
+void loop() {
+  // Nothing to do here
+}
