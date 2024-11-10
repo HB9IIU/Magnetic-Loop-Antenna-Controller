@@ -1,0 +1,1376 @@
+// author: Daniel Staempfli
+// thank you to Mike, K7MDL for the Bluettoth Management par; https://github.com/K7MDL2/IC-705-BLE-Serial-Example/tree/main
+
+#include <Arduino.h>
+#include "BLEDevice.h"
+#include "esp_bt_main.h"
+#include "esp_bt_device.h"
+#include <M5Unified.h> // Arduino / ESP-IDF Library for M5Stack Series
+#include <SPIFFS.h>    // SPIFFS library
+#include <WiFi.h>
+#include <HTTPClient.h>
+
+#define SSID "HB9IIU-MLA" // WiFi SSID to connect to
+#define POLL_TX 250000000 // Poll the radio for TX/RX status
+#define POLL_FREQ 200     // Poll the radio for frequency and other parameters
+
+// BLE Service and Characteristic UUIDs for the Nordic UART Service
+static BLEUUID serviceUUID("14cf8001-1ec2-d408-1b04-2eb270f14203");
+static BLEUUID charUUID_RX("14cf8002-1ec2-d408-1b04-2eb270f14203");
+static BLEUUID charUUID_TX("14cf8002-1ec2-d408-1b04-2eb270f14203");
+
+// Data to be sent to the IC-705 for pairing and identification
+const uint8_t CIV_ID0[] = {0xFE, 0xF1, 0x00, 0x61, 0x30, 0x30, 0x30, 0x30, 0x31, 0x31, 0x30, 0x31, 0x2D, 0x30, 0x30, 0x30, 0x30, 0x2D, 0x31, 0x30, 0x30, 0x30, 0x2D, 0x38, 0x30, 0x30, 0x30, 0x2D, 0x30, 0x30, 0x38, 0x30, 0x35, 0x46, 0x39, 0x42, 0x33, 0x34, 0x46, 0x42, 0xFD};
+const uint8_t CIV_ID1[] = {0xFE, 0xF1, 0x00, 0x62, 0x49, 0x43, 0x37, 0x30, 0x35, 0x2D, 0x4D, 0x4C, 0x41, 0x2D, 0x48, 0x42, 0x39, 0x49, 0x49, 0x55, 0x20, 0xFD}; // Send Name "IC705-MLA-HB9IIU"
+
+const int scanTime = 5; // BLE scan time in seconds
+static BLEClient *pClient = nullptr;
+static BLEAddress *pServerAddress = nullptr;
+static bool doConnect = false;
+static bool connected = false;
+static BLERemoteCharacteristic *pTXCharacteristic = nullptr;
+static BLERemoteCharacteristic *pRXCharacteristic = nullptr;
+const uint8_t radio_address = 0xA4; // A4 for IC-705
+uint64_t VFOfrequency = 0;
+uint64_t theoreticalResonanceFrequency = 0; // theoretical resonance frequency at current stepper position
+uint32_t currentStepperPosition = 0;        // current stepper position
+uint32_t predictedStepperPosition = 0;      // predicted stepper position from lookup table
+uint32_t deltaSteps = 0;                    // current stepper position - predicted stepper position
+long estimated_movement_duration_in_microseconds;
+bool initialTuningDone = false;
+
+const uint32_t decMulti[] = {1000000000, 100000000, 10000000, 1000000, 100000, 10000, 1000, 100, 10, 1};
+uint8_t PTT = 0;
+
+// Variables to store the RSSI and Signal Quality of the connected device
+int connectedRSSI = 0;
+String signalQuality = "Unknown";
+
+// Status flags
+static bool BT_ADDR_confirm = false;
+static bool Name_confirm = false;
+static bool Token_confirm = false;
+static bool Pairing_Accepted = false;
+static bool CIV_granted = false;
+static bool BLE_connected = false;
+
+// different fonts
+const lgfx::IFont *small_font = &lgfx::fonts::Font2;   // Small font
+const lgfx::IFont *medium_font = &lgfx::fonts::Font4;  // Medium font
+const lgfx::IFont *digital_font = &lgfx::fonts::Font7; // Large font
+
+// Add these lines at the top, after including the M5 Unified library
+#define BUTTON_LEFT_PIN 39   // Pin number for left button
+#define BUTTON_MIDDLE_PIN 38 // Pin number for middle button
+#define BUTTON_RIGHT_PIN 37  // Pin number for right button
+
+// for the button
+int buttonWidth;
+int buttonHeight;
+int buttonX;
+int buttonY;
+int currentFrequencyIndex = 0; // Index to track current frequency in the sequence
+uint32_t frequencySequence[] = {
+    7000000, 7050000, 7100000, 7150000, 7200000,
+    7250000, 7300000, 7350000, 7300000, 7250000,
+    7200000, 7150000, 7100000, 7050000, 7000000
+};
+// Function prototypes
+void printFrequency(const uint8_t freq[]);
+char *formatVFO(uint64_t vfo);
+void display_PTT(uint8_t PTT_state);
+void scanBLEServers();
+bool connectToServer(BLEAddress pAddress);
+void notifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify);
+String getSignalQuality(int rssi);
+void displaySplashScreen();
+void establish_wifi_connection();
+String getLinkQualityDescription(int8_t rssi);
+void GetTunedStatusFromSlave();
+String sendCommandToSlave(const String &command, const String &argument);
+void displayErrorOnLCD(const String &functionName);
+void DisplayPage_1_Template();
+void DisplayPage_2_Template();
+void updateVFOfreqOnLCD(uint64_t freq);
+void updateRESONANCEfreqOnLCD(uint64_t freq);
+
+void setVFOFrequency(uint32_t newVFOFrequency);
+void setTunedFrequToPreferenceOnSlave(uint32_t newVFOFrequency);
+void getStepperPositionForCurrentVFOfrequency(uint32_t currentVFOfrequency);
+String formatNumberWithSeparator(uint32_t value);
+String formatSignedNumberWithSeparator(int32_t value);
+void monitorStepperMovement();
+void setNewPositionForCurrentVFOfrequency(uint32_t targetFrequency);
+void animated_progress_bar(int x, int y, int w, int h, unsigned long estimated_movement_duration_in_microseconds);
+void vibrate();
+void buttonLeftPressed();
+void buttonMiddlePressed();
+void buttonRightPressed();
+// Class definitions for BLE callbacks
+class MyClientCallback : public BLEClientCallbacks
+{
+  void onConnect(BLEClient *pclient) override
+  {
+    BLE_connected = true;
+    Serial.println("Now Connected to BLE server");
+    M5.Lcd.fillScreen(TFT_BLACK); // Clear screen after splash
+    M5.Lcd.setTextColor(TFT_WHITE);
+    M5.Lcd.setFont(medium_font);
+    M5.Lcd.setTextSize(2);
+    M5.Lcd.drawCenterString("IC705", 160, 40);
+    M5.Lcd.setTextSize(1);
+    M5.Lcd.drawCenterString("Now Connected", 160, 110);
+    // Set text color based on signal quality
+    if (signalQuality == "Excellent")
+    {
+      M5.Lcd.setTextColor(TFT_GREENYELLOW);
+    }
+    else if (signalQuality == "Very Good")
+    {
+      M5.Lcd.setTextColor(TFT_GREEN);
+    }
+    else if (signalQuality == "Good")
+    {
+      M5.Lcd.setTextColor(TFT_YELLOW);
+    }
+    else if (signalQuality == "Fair")
+    {
+      M5.Lcd.setTextColor(TFT_ORANGE);
+    }
+    else if (signalQuality == "Poor")
+    {
+      M5.Lcd.setTextColor(TFT_RED);
+    }
+    else if (signalQuality == "Very Poor")
+    {
+      M5.Lcd.setTextColor(TFT_DARKCYAN);
+    }
+
+    // Display the signal quality
+    M5.Lcd.drawCenterString("Link Quality: " + signalQuality, 160, 160);
+  }
+
+  void onDisconnect(BLEClient *pclient) override
+  {
+    connected = false;
+    doConnect = false;
+    BLE_connected = false;
+    Name_confirm = Token_confirm = CIV_granted = false;
+    Serial.println("Lost BLE server connection");
+  }
+};
+
+class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
+{
+  void onResult(BLEAdvertisedDevice advertisedDevice) override
+  {
+    Serial.print("BLE Advertised Device found - ");
+    Serial.println(advertisedDevice.toString().c_str());
+
+    if (advertisedDevice.haveServiceUUID() && advertisedDevice.getServiceUUID().equals(serviceUUID))
+    {
+      Serial.println("Found a device with the desired ServiceUUID!");
+      advertisedDevice.getScan()->stop();
+      if (pServerAddress != nullptr)
+      {
+        delete pServerAddress;
+      }
+      pServerAddress = new BLEAddress(advertisedDevice.getAddress());
+
+      // Store RSSI of the connected device
+      connectedRSSI = advertisedDevice.getRSSI();
+
+      // Determine signal quality
+      signalQuality = getSignalQuality(connectedRSSI);
+
+      Serial.print("Stored RSSI: ");
+      Serial.println(connectedRSSI);
+      Serial.print("Signal Quality: ");
+      Serial.println(signalQuality);
+
+      doConnect = true;
+    }
+  }
+};
+
+IPAddress slaveIP(192, 168, 4, 1); // IP address of the SLAVE device to send HTTP commands to
+HTTPClient http;                   // HTTPClient instance
+void setup()
+{
+  Serial.begin(115200);
+  M5.begin(); // Initialize M5Stack
+
+  Serial.println("\nHB9IIU MLA MASTER Controller Started\n");
+  BLEDevice::init("");
+
+  // M5.Lcd.fillRect(0, 159, 320, 28, BLACK);
+  /*
+      // Animate the progress bar from 0 to 100
+      for (uint8_t i = 0; i <= 100; i++) {
+          progressBar(15, 159, 305, 28, i);
+          delay(50); // Adjust the delay to control the speed of the animation
+      }
+
+      // Animate the progress bar from 100 to 0
+      for (uint8_t i = 100; i >= 0; i--) {
+          progressBar(15, 159, 305, 28, i);
+          delay(50); // Adjust the delay to control the speed of the animation
+      }
+
+  */
+
+  // Display splash screen
+  // displaySplashScreen();
+  establish_wifi_connection();
+
+  M5.Lcd.fillScreen(TFT_BLACK); // Clear screen after splash
+  M5.Lcd.setTextColor(TFT_WHITE);
+  M5.Lcd.setFont(medium_font);
+  M5.Lcd.setTextSize(1);
+  M5.Lcd.setTextColor(TFT_WHITE); // Set text color to white
+  M5.Lcd.drawCenterString("Scanning", 160, 60);
+  M5.Lcd.drawCenterString("for", 160, 110);
+  M5.Lcd.drawCenterString("Bluetooth Devices", 160, 160);
+
+  scanBLEServers();
+}
+
+void loop()
+{
+  static uint32_t time_freq = 0;
+  static uint32_t time_tx = 0;
+
+  if (doConnect)
+  {
+    if (connectToServer(*pServerAddress))
+    {
+      Serial.println("\nWe are now connected to the BLE Server.");
+      GetTunedStatusFromSlave();
+      DisplayPage_1_Template();
+      setVFOFrequency(theoreticalResonanceFrequency);
+    }
+    else
+    {
+      Serial.println("We have failed to connect to the server.");
+      connected = false;
+    }
+    doConnect = false;
+  }
+
+  if (pClient != nullptr && !pClient->isConnected())
+  {
+    if (BLE_connected)
+      Serial.println("BLE not connected to radio");
+
+    delay(100);
+    connected = false;
+    BLE_connected = false;
+  }
+  else
+  {
+    BLE_connected = true;
+  }
+
+  if (connected)
+  {
+
+    // Polling frequency if its time to do so
+    if (millis() >= time_freq + POLL_FREQ)
+    {
+      uint8_t CIV_frequency[] = {0xFE, 0xFE, radio_address, 0xE0, 0x03, 0xFD};
+      pRXCharacteristic->writeValue(CIV_frequency, sizeof(CIV_frequency), true);
+      time_freq = millis();
+    }
+
+    if (millis() >= time_tx + POLL_TX)
+    {
+      uint8_t CIV_TX[] = {0xFE, 0xFE, radio_address, 0xE0, 0x1C, 0x00, 0xFD};
+      pRXCharacteristic->writeValue(CIV_TX, sizeof(CIV_TX), true);
+      time_tx = millis();
+    }
+
+    if (VFOfrequency != 0)
+    {
+      updateVFOfreqOnLCD(VFOfrequency);
+
+      if (initialTuningDone == true)
+      {
+        getStepperPositionForCurrentVFOfrequency(VFOfrequency);
+      }
+    }
+    // display_PTT(PTT);
+
+    M5.update(); // Update touch and button states
+    // Get the details of the touch event
+    auto touch = M5.Touch.getDetail();
+
+    // Check for button presses
+    if (M5.BtnA.wasPressed())
+    {
+      buttonLeftPressed(); // Call the function for left button press
+    }
+
+    if (M5.BtnB.wasPressed())
+    {
+      buttonMiddlePressed(); // Call the function for middle button press
+    }
+
+    if (M5.BtnC.wasPressed())
+    {
+      buttonRightPressed(); // Call the function for right button press
+    }
+
+    // Check if a touch was detected
+    if (touch.wasPressed())
+    {
+      int16_t x = touch.x;
+      int16_t y = touch.y;
+
+      // Serial.printf("Touch detected at x: %d, y: %d\n", x, y);
+
+      // Check if the touch coordinates are within the "Done" button's area
+      if (x >= buttonX && x <= (buttonX + buttonWidth) && y >= buttonY && y <= (buttonY + buttonHeight))
+      {
+
+        vibrate();
+        // delay(800); // for debouncing
+
+        if (initialTuningDone == false)
+        {
+          Serial.println("\nDone Button Pressed");
+          Serial.print("Initial tuning");
+          setTunedFrequToPreferenceOnSlave(VFOfrequency);
+          theoreticalResonanceFrequency = VFOfrequency;
+          initialTuningDone = true;
+          DisplayPage_2_Template();
+          Serial.println("Display Switched to Tuning Mode");
+        }
+        else
+        {
+          Serial.println("Tune Button Touched");
+          setNewPositionForCurrentVFOfrequency(VFOfrequency);
+        }
+      }
+    }
+  }
+  else
+  {
+    scanBLEServers();
+  }
+
+  delay(1);
+}
+
+void printFrequency(const uint8_t freq[])
+{
+  VFOfrequency = 0;
+  for (uint8_t i = 0; i < 5; i++)
+  {
+    if (freq[9 - i] == 0xFD)
+      continue;
+    VFOfrequency += (freq[9 - i] >> 4) * decMulti[i * 2];
+    VFOfrequency += (freq[9 - i] & 0x0F) * decMulti[i * 2 + 1];
+  }
+}
+
+char *formatVFO(uint64_t vfo)
+{
+
+  static char vfo_str[20] = {""};
+  uint32_t MHz = (vfo / 1000000 % 1000000);
+  uint16_t Hz = (vfo % 1000);
+  uint16_t KHz = ((vfo % 1000000) - Hz) / 1000;
+  sprintf(vfo_str, "%lu.%03u.%03u", MHz, KHz, Hz);
+  return vfo_str;
+}
+
+void display_PTT(uint8_t PTT_state)
+{
+  static uint8_t prev_PTT_state = 1;
+  const char *PTT_Tx = " Tx ";
+  const char *PTT_Rx = " Rx ";
+
+  if (PTT_state != prev_PTT_state)
+  {
+    Serial.printf("*** PTT = %u\n", PTT_state);
+
+    Serial.printf("%s\n", prev_PTT_state ? PTT_Tx : PTT_Rx);
+    Serial.printf("%s\n", PTT_state ? PTT_Tx : PTT_Rx);
+
+    prev_PTT_state = PTT_state;
+  }
+}
+
+void updateVFOfreqOnLCD(uint64_t freq)
+{
+  static uint64_t prev_freq = 0;
+  if (freq != prev_freq)
+  {
+    Serial.print("VFO Frequency Changed to: ");
+    Serial.println(formatVFO(VFOfrequency));
+    M5.Lcd.fillRect(0, 0, 320, 49, BLACK); // 49 = font height +1
+    M5.Lcd.setFont(digital_font);
+    M5.Lcd.setTextColor(TFT_GREEN); // Set text color to green
+    M5.Lcd.drawCenterString(formatVFO(VFOfrequency), 160, 0);
+    prev_freq = freq;
+  }
+}
+void updateRESONANCEfreqOnLCD(uint64_t freq)
+{
+
+  Serial.print("Resonance Frequency Changed to: ");
+  Serial.println(formatVFO(freq));
+  M5.Lcd.fillRect(0, 80, 320, 49, BLACK); // 49 = font height +1
+
+  M5.Lcd.setFont(digital_font);
+  M5.Lcd.setTextColor(TFT_GOLD); // Set text color to gold
+  M5.Lcd.drawCenterString(formatVFO(theoreticalResonanceFrequency), 160, 80);
+
+  M5.Lcd.setFont(medium_font);
+  M5.Lcd.setTextColor(TFT_WHITE); // Set text color to white
+  M5.Lcd.fillRect(0, 159, 320, 28, BLACK);
+
+  M5.Lcd.drawCenterString("Steps to Go:" + formatSignedNumberWithSeparator(0), 160, 160);
+}
+
+void scanBLEServers()
+{
+  BLEScan *pBLEScan = BLEDevice::getScan();
+  pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
+  pBLEScan->setInterval(1349);
+  pBLEScan->setWindow(449);
+  pBLEScan->setActiveScan(true);
+  BLEScanResults foundDevices = pBLEScan->start(scanTime, false);
+  Serial.print("Devices found: ");
+  Serial.println(foundDevices.getCount());
+  Serial.println("Scan done!");
+  pBLEScan->clearResults();
+}
+
+bool connectToServer(BLEAddress pAddress)
+{
+  Serial.print("Establishing a connection to device address: ");
+  Serial.println(pAddress.toString().c_str());
+
+  if (pClient == nullptr)
+  {
+    pClient = BLEDevice::createClient();
+    Serial.println(" - Created client");
+    pClient->setClientCallbacks(new MyClientCallback());
+  }
+
+  pClient->connect(pAddress);
+  Serial.println(" - Connected to server");
+  pClient->setMTU(517);
+
+  BLERemoteService *pRemoteService = pClient->getService(serviceUUID);
+  if (pRemoteService == nullptr)
+  {
+    Serial.print("Failed to find Nordic UART service UUID: ");
+    Serial.println(serviceUUID.toString().c_str());
+    pClient->disconnect();
+    return false;
+  }
+  Serial.println(" - Found our service");
+
+  pTXCharacteristic = pRemoteService->getCharacteristic(charUUID_TX);
+  if (pTXCharacteristic == nullptr)
+  {
+    Serial.print("Failed to find TX characteristic UUID: ");
+    Serial.println(charUUID_TX.toString().c_str());
+    pClient->disconnect();
+    return false;
+  }
+  Serial.println(" - Remote BLE TX characteristic reference established");
+
+  pRXCharacteristic = pRemoteService->getCharacteristic(charUUID_RX);
+  if (pRXCharacteristic == nullptr)
+  {
+    Serial.print("Failed to find our characteristic UUID: ");
+    Serial.println(charUUID_RX.toString().c_str());
+    return false;
+  }
+  Serial.println(" - Remote BLE RX characteristic reference established");
+
+  if (pTXCharacteristic->canNotify())
+  {
+    pTXCharacteristic->registerForNotify(notifyCallback);
+  }
+
+  // Send initial pairing data
+  uint8_t civ_id0[sizeof(CIV_ID0)];
+  memcpy(civ_id0, CIV_ID0, sizeof(CIV_ID0));
+  pRXCharacteristic->writeValue(civ_id0, sizeof(civ_id0), true);
+  delay(20);
+
+  uint8_t civ_id1[sizeof(CIV_ID1)];
+  memcpy(civ_id1, CIV_ID1, sizeof(CIV_ID1));
+  pRXCharacteristic->writeValue(civ_id1, sizeof(civ_id1), true);
+  delay(20);
+
+  const uint8_t CIV_ID2[] = {0xFE, 0xF1, 0x00, 0x63, 0xEE, 0x39, 0x09, 0x10, 0xFD};
+  uint8_t civ_id2[sizeof(CIV_ID2)];
+  memcpy(civ_id2, CIV_ID2, sizeof(CIV_ID2));
+  pRXCharacteristic->writeValue(civ_id2, sizeof(civ_id2), true);
+  delay(20);
+
+  return true;
+}
+
+void notifyCallback(
+    BLERemoteCharacteristic *pBLERemoteCharacteristic,
+    uint8_t *pData,
+    size_t length,
+    bool isNotify)
+{
+  for (size_t i = 0; i < length; i++)
+  {
+#ifdef WATCH_SERIAL
+    Serial.print(pData[i], HEX);
+    Serial.print(",");
+#endif
+    if (pData[i] == 0xFD)
+    {
+#ifdef WATCH_SERIAL
+      Serial.println();
+#endif
+
+      if (pData[1] == 0xF1 && pData[2] == 0x00)
+      {
+        switch (pData[3])
+        {
+        case 0x61:
+          Serial.println("Got BT_ADDR message confirmation, proceed");
+          BT_ADDR_confirm = true;
+          break;
+        case 0x62:
+          Serial.println("Got NAME message confirmation, proceed");
+          Name_confirm = true;
+          break;
+        case 0x63:
+          Serial.println("Got TOKEN message confirmation, proceed");
+          Token_confirm = true;
+          Pairing_Accepted = (pData[4] == 0x01);
+          break;
+        case 0x64:
+          Serial.println("CI-V bus ACCESS granted, proceed");
+          CIV_granted = true;
+          connected = true;
+          break;
+        }
+      }
+    }
+  }
+
+  if (connected)
+  {
+    switch (pData[4])
+    {
+    case 0x00:
+    case 0x03:
+    case 0x05:
+      printFrequency(pData);
+      break;
+    case 0x1C:
+      PTT = (pData[5] == 0) ? pData[6] : PTT;
+      break;
+    default:
+      break;
+    }
+  }
+}
+
+/**
+ * @brief Determine the signal quality based on RSSI value.
+ *
+ * @param rssi The RSSI value.
+ * @return String The signal quality as a string.
+ */
+String getSignalQuality(int rssi)
+{
+  if (rssi >= -50)
+    return "Excellent";
+  else if (rssi >= -60)
+    return "Very Good";
+  else if (rssi >= -70)
+    return "Good";
+  else if (rssi >= -80)
+    return "Fair";
+  else if (rssi >= -90)
+    return "Poor";
+  else
+    return "Very Poor";
+}
+
+void displaySplashScreen()
+{
+  // Initialize SPIFFS
+  if (!SPIFFS.begin(true))
+  {
+    Serial.println("An error occurred while mounting SPIFFS");
+    return;
+  }
+
+  File bmpFile = SPIFFS.open("/splash.bmp", "r");
+  if (!bmpFile)
+  {
+    Serial.println("Failed to open splash screen image.");
+    return;
+  }
+
+  // Get the size of the image
+  uint32_t fileSize = bmpFile.size();
+  uint8_t *buffer = (uint8_t *)malloc(fileSize);
+
+  if (!buffer)
+  {
+    Serial.println("Failed to allocate memory for BMP image.");
+    bmpFile.close();
+    return;
+  }
+
+  // Read the entire file into the buffer
+  bmpFile.read(buffer, fileSize);
+  bmpFile.close();
+
+  // Check BMP header (first two bytes should be 'BM')
+  if (buffer[0] != 'B' || buffer[1] != 'M')
+  {
+    Serial.println("Not a valid BMP file.");
+    free(buffer);
+    return;
+  }
+
+  // Read image width and height from BMP header
+  int imageWidth = *(int *)&buffer[18];
+  int imageHeight = *(int *)&buffer[22];
+
+  // Calculate the offset where the actual image data starts
+  uint32_t dataOffset = *(uint32_t *)&buffer[10];
+
+  // Draw the BMP row by row
+  for (int y = 0; y < imageHeight; y++)
+  {
+    // Create a row buffer
+    uint16_t rowBuffer[imageWidth];
+
+    for (int x = 0; x < imageWidth; x++)
+    {
+      // The BMP file is stored upside down, so we need to flip it
+      int pos = dataOffset + (imageHeight - 1 - y) * imageWidth * 3 + x * 3;
+      uint8_t b = buffer[pos];
+      uint8_t g = buffer[pos + 1];
+      uint8_t r = buffer[pos + 2];
+
+      rowBuffer[x] = M5.Lcd.color565(r, g, b);
+    }
+
+    // Draw the whole row at once
+    M5.Lcd.drawBitmap(0, y, imageWidth, 1, rowBuffer);
+  }
+  delay(2000);
+  // Free the buffer memory
+  free(buffer);
+}
+
+void establish_wifi_connection()
+{
+  Serial.print("Establishing WiFi Connection");
+
+  M5.Lcd.fillScreen(TFT_BLACK); // Clear screen after splash
+  M5.Lcd.setTextColor(TFT_WHITE);
+  M5.Lcd.setFont(medium_font);
+  M5.Lcd.setTextSize(1);
+  M5.Lcd.setTextColor(TFT_WHITE); // Set text color to white
+  M5.Lcd.drawCenterString("Scanning WiFi", 160, 60);
+  M5.Lcd.drawCenterString("for", 160, 110);
+  M5.Lcd.drawCenterString("Slave Controller", 160, 160);
+
+  // Attempt to connect to WiFi
+  WiFi.begin(SSID); // Connect to the WiFi network
+
+  int attemptCounter = 0;
+  String dots = "";
+
+  while (WiFi.status() != WL_CONNECTED && attemptCounter < 15)
+  {
+    delay(500);
+    dots += "*"; // Add a dot for each attempt
+    Serial.print(".");
+
+    // Calculate the width of the dots string and its starting position
+    int16_t dotsWidth = M5.Lcd.textWidth(dots);
+    int16_t xPosDots = (320 - dotsWidth) / 2;
+
+    // Clear the area where the dots are displayed
+    M5.Lcd.fillRect(0, 195, 320, 210, BLACK);
+
+    // Set cursor to the new position and print the dots
+    M5.Lcd.setCursor(xPosDots, 200);
+    M5.Lcd.print(dots);
+
+    attemptCounter++; // Increment the attempt counter
+  }
+
+  if (WiFi.status() == WL_CONNECTED)
+  {
+
+    M5.Lcd.fillScreen(TFT_BLACK); // Clear screen after splash
+    M5.Lcd.setTextColor(TFT_WHITE);
+    M5.Lcd.setFont(medium_font);
+    M5.Lcd.setTextSize(2);
+    M5.Lcd.drawCenterString("SLAVE", 160, 30);
+    M5.Lcd.setTextSize(1);
+    M5.Lcd.drawCenterString("Now Connected", 160, 100);
+
+    // Display WiFi signal strength
+    int8_t rssi = WiFi.RSSI();                            // Get WiFi RSSI (signal strength)
+    String linkQuality = getLinkQualityDescription(rssi); // Get qualitative description
+                                                          // Display the signal quality
+    M5.Lcd.drawCenterString("Signal Strength: " + String(rssi) + " dB", 160, 150);
+
+    // Set the text color based on the quality
+    if (linkQuality == "Strong")
+    {
+      M5.Lcd.setTextColor(TFT_GREEN); // Green for strong signal
+    }
+    else if (linkQuality == "Fair")
+    {
+      M5.Lcd.setTextColor(TFT_YELLOW); // Yellow for fair signal
+    }
+    else if (linkQuality == "Low")
+    {
+      M5.Lcd.setTextColor(TFT_RED); // Red for low signal
+    }
+
+    M5.Lcd.drawCenterString("Signal Quality: " + linkQuality, 160, 195);
+
+    Serial.println("\nSuccessful Wifi Connection to Slave");
+
+    // Initialize HTTPClient
+    String url = String("http://") + slaveIP.toString() + "/command";
+    http.begin(url); // Begin HTTP connection
+    http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+
+    // Set the delay time based on signal quality
+    if (linkQuality == "Fair")
+    {
+      delay(2000); // 3000 ms delay for fair signal
+    }
+    else if (linkQuality == "Low")
+    {
+      delay(3000); // 4000 ms delay for low signal
+    }
+    else
+    {
+      delay(1000); // Default 2000 ms delay for strong signal
+    }
+  }
+  else
+  {
+    M5.Lcd.fillScreen(TFT_BLACK); // Clear screen after splash
+    M5.Lcd.setTextColor(TFT_WHITE);
+    M5.Lcd.setFont(medium_font);
+    M5.Lcd.setTextSize(1);
+    M5.Lcd.setTextColor(TFT_WHITE); // Set text color to white
+    M5.Lcd.drawCenterString("Slave Controller", 160, 60);
+    M5.Lcd.drawCenterString("Not Found", 160, 110);
+    M5.Lcd.drawCenterString("Rebooting", 160, 160);
+    delay(2000);   // Show the message for 2 seconds
+    ESP.restart(); // Reboot the device
+  }
+}
+
+String getLinkQualityDescription(int8_t rssi)
+{
+  if (rssi > -50)
+  {
+    return "Strong";
+  }
+  else if (rssi > -70)
+  {
+    return "Fair";
+  }
+  else
+  {
+    return "Low";
+  }
+}
+
+String sendCommandToSlave(const String &command, const String &argument)
+{
+  String postData = "command=" + command;
+  if (argument.length() > 0)
+  {
+    postData += "&argument=" + argument;
+  }
+  // Serial.println("Sending POST request with data: " + postData);
+  int httpResponseCode = http.POST(postData); // Send POST request
+  if (httpResponseCode > 0)
+  {
+    // Serial.print("HTTP Response code: ");
+    // Serial.println(httpResponseCode);
+    String response = http.getString();
+    // Serial.print("Raw Response: '");
+    // Serial.print(response);
+    // Serial.println("'");
+    return response;
+  }
+  else
+  {
+    Serial.print("Error on sending POST: ");
+    Serial.println(httpResponseCode);
+    return "";
+  }
+}
+
+void GetTunedStatusFromSlave()
+{
+  const int maxRetries = 5;    // Maximum number of retries
+  const int retryDelay = 1000; // Delay between retries in milliseconds
+  int attempts = 0;
+  bool success = false;
+
+  while (attempts < maxRetries && !success)
+  {
+    attempts++;
+    Serial.printf("\nAttempt %d: Getting Current stepper position and associated frequency from Slave\n", attempts);
+    String response = sendCommandToSlave("GetTunedStatusFromSlave", "");
+
+    if (response.length() > 0)
+    {
+      // Parse the response to extract stepper position and vfoFrequency
+      int separatorIndex = response.indexOf(',');
+      if (separatorIndex != -1)
+      {
+        String stepperPositionStr = response.substring(0, separatorIndex);
+        String frequencyStr = response.substring(separatorIndex + 1);
+        currentStepperPosition = stepperPositionStr.toInt();
+        theoreticalResonanceFrequency = frequencyStr.toInt();
+        Serial.print("Current Stepper Position (from slave): ");
+        Serial.println(formatNumberWithSeparator(currentStepperPosition));
+        Serial.print("Resulting Lookup Resonance Frequency:  ");
+        Serial.println(formatVFO(theoreticalResonanceFrequency));
+        Serial.println("");
+        success = true; // Mark as successful xxxxxxxxx
+
+        updateRESONANCEfreqOnLCD(theoreticalResonanceFrequency);
+      }
+      else
+      {
+        Serial.println("Unexpected response format.");
+      }
+    }
+    else
+    {
+      Serial.println("Failed to get a response from Slave. Retrying...");
+      delay(retryDelay); // Wait before retrying
+    }
+  }
+
+  if (!success)
+  {
+    Serial.println("Failed to get tuned status from Slave after multiple attempts.");
+    displayErrorOnLCD("GetTunedStatusFromSlave()");
+  }
+}
+
+
+
+
+void setTunedFrequToPreferenceOnSlave(uint32_t newVFOFrequency)
+{
+  const int maxRetries = 5;    // Maximum number of retries
+  const int retryDelay = 1000; // Delay between retries in milliseconds
+  int attempts = 0;
+  bool success = false;
+
+  while (attempts < maxRetries && !success)
+  {
+    attempts++;
+    Serial.printf("\nAttempt %d: Sending command to Slave to store new reference point\n", attempts);
+    String response = sendCommandToSlave("setTunedFrequToPreferenceOnSlave", String(newVFOFrequency));
+
+    if (response.length() > 0)
+    {
+      // Parse the response to extract stepper position and vfoFrequency
+      int separatorIndex = response.indexOf(',');
+      if (separatorIndex != -1)
+      {
+        String stepperPositionStr = response.substring(0, separatorIndex);
+        String frequencyStr = response.substring(separatorIndex + 1);
+        currentStepperPosition = stepperPositionStr.toInt();
+        theoreticalResonanceFrequency = frequencyStr.toInt();
+        Serial.println("Response from slave): ");
+
+        Serial.print("Current Stepper Position: ");
+        Serial.println(formatNumberWithSeparator(currentStepperPosition));
+        Serial.print("Resulting Lookup Resonance Frequency:  ");
+        Serial.println(formatVFO(theoreticalResonanceFrequency));
+        Serial.println("");
+        success = true; // Mark as successful
+      }
+      else
+      {
+        Serial.println("Unexpected response format.");
+      }
+    }
+    else
+    {
+      Serial.println("Failed to get a response from Slave. Retrying...");
+      delay(retryDelay); // Wait before retrying
+    }
+  }
+
+  if (!success)
+  {
+    Serial.println("Failed to get tuned status from Slave after multiple attempts.");
+    displayErrorOnLCD("setTunedFrequToPreferenceOnSlave()");
+  }
+}
+
+void displayErrorOnLCD(const String &functionName)
+{
+  M5.Lcd.fillScreen(TFT_BLACK);        // Clear the screen
+  M5.Lcd.setTextColor(TFT_RED);        // Set text color to red
+  M5.Lcd.setFont(&lgfx::fonts::Font4); // Use a large font for the error message
+  M5.Lcd.setTextSize(2);               // Set text size
+
+  // Display the "ERROR" message at the top
+  M5.Lcd.drawCenterString("ERROR", 160, 50);
+
+  // Set the font size back to a smaller size for the function name
+  M5.Lcd.setTextSize(1);
+  M5.Lcd.setTextColor(TFT_WHITE); // Set text color to white for the function name
+
+  // Display the function name where the error was triggered
+  M5.Lcd.drawCenterString(functionName, 160, 120);
+
+  // Block the app at this stage by entering an infinite loop
+  while (true)
+  {
+    // Optionally, you can add a small delay or other functionality here, like blinking text, etc.
+    delay(1000);
+  }
+}
+
+void DisplayPage_1_Template()
+{
+
+  M5.Lcd.fillScreen(TFT_BLACK); // Clear screen after splash
+
+  M5.Lcd.setFont(digital_font);
+  M5.Lcd.setTextColor(TFT_GREEN); // Set text color to green
+  M5.Lcd.drawCenterString(formatVFO(VFOfrequency), 160, 1);
+
+  M5.Lcd.setFont(small_font);
+  M5.Lcd.setTextColor(TFT_LIGHTGRAY); // Set text color to light gray
+  M5.Lcd.drawCenterString("Automatically Set VFO Frequency", 160, 53);
+
+  M5.Lcd.setFont(digital_font);
+  M5.Lcd.setTextColor(TFT_GOLD); // Set text color to gold
+  M5.Lcd.drawCenterString(formatVFO(theoreticalResonanceFrequency), 160, 80);
+
+  M5.Lcd.setFont(small_font);
+  M5.Lcd.setTextColor(TFT_LIGHTGRAY); // Set text color to light gray
+  M5.Lcd.drawCenterString("Current Resonance Frequency", 160, 132);
+
+  M5.Lcd.setFont(medium_font);
+  M5.Lcd.setTextColor(TFT_WHITE); // Set text color to white
+  M5.Lcd.drawCenterString("Tune to Minimum SWR", 160, 160);
+
+  // Draw the button at the bottom
+  buttonWidth = 320;
+  buttonHeight = 50;
+  buttonX = (M5.Lcd.width() - buttonWidth) / 2; // Center horizontally
+  buttonY = M5.Lcd.height() - buttonHeight - 0; // 0 pixels from the bottom
+
+  M5.Lcd.fillRoundRect(buttonX, buttonY, buttonWidth, buttonHeight, 10, TFT_DARKCYAN); // Draw button with rounded corners
+  M5.Lcd.drawRoundRect(buttonX, buttonY, buttonWidth, buttonHeight, 10, TFT_WHITE);    // Draw button border
+
+  M5.Lcd.setTextColor(TFT_WHITE);                                                               // Set text color to white for the button label
+  M5.Lcd.setFont(medium_font);                                                                  // Use a small font for the button label
+  M5.Lcd.drawCenterString("Done", buttonX + buttonWidth / 2, buttonY + (buttonHeight / 2) - 8); // Draw label centered on the button
+
+  M5.Lcd.setFont(digital_font);   // setting back to default font for next display updates
+  M5.Lcd.setTextColor(TFT_GREEN); // Set text color to green
+}
+
+void DisplayPage_2_Template()
+{
+  M5.Lcd.fillScreen(TFT_BLACK); // Clear screen after splash
+  M5.Lcd.setFont(digital_font);
+  M5.Lcd.setTextColor(TFT_GREEN); // Set text color to green
+  M5.Lcd.drawCenterString(formatVFO(VFOfrequency), 160, 1);
+
+  M5.Lcd.setFont(small_font);
+  M5.Lcd.setTextColor(TFT_LIGHTGRAY); // Set text color to light gray
+  M5.Lcd.drawCenterString("VFO Frequency", 160, 53);
+
+  M5.Lcd.setFont(digital_font);
+  M5.Lcd.setTextColor(TFT_GOLD); // Set text color to gold
+  M5.Lcd.drawCenterString(formatVFO(theoreticalResonanceFrequency), 160, 80);
+
+  M5.Lcd.setFont(small_font);
+  M5.Lcd.setTextColor(TFT_LIGHTGRAY); // Set text color to light gray
+  M5.Lcd.drawCenterString("Current Resonance Frequency", 160, 132);
+
+  M5.Lcd.setFont(medium_font);
+  M5.Lcd.setTextColor(TFT_WHITE); // Set text color to white
+  M5.Lcd.drawCenterString("Delta Steps: 87'987", 160, 160);
+
+  // Draw the button at the bottom
+  buttonWidth = 320;
+  buttonHeight = 50;
+  buttonX = (M5.Lcd.width() - buttonWidth) / 2; // Center horizontally
+  buttonY = M5.Lcd.height() - buttonHeight - 0; // 0 pixels from the bottom
+
+  M5.Lcd.fillRoundRect(buttonX, buttonY, buttonWidth, buttonHeight, 10, TFT_DARKCYAN); // Draw button with rounded corners
+  M5.Lcd.drawRoundRect(buttonX, buttonY, buttonWidth, buttonHeight, 10, TFT_WHITE);    // Draw button border
+
+  M5.Lcd.setTextColor(TFT_WHITE);                                                                             // Set text color to white for the button label
+  M5.Lcd.setFont(medium_font);                                                                                // Use a small font for the button label
+  M5.Lcd.drawCenterString("Tune Magnetic Loop", buttonX + buttonWidth / 2, buttonY + (buttonHeight / 2) - 8); // Draw label centered on the button
+
+  M5.Lcd.setFont(digital_font);   // setting back to default font for next display updates
+  M5.Lcd.setTextColor(TFT_GREEN); // Set text color to green
+}
+
+void setVFOFrequency(uint32_t newVFOFrequency)
+{
+  Serial.print("Setting VFO frequency to: ");
+  Serial.println(formatVFO(newVFOFrequency));
+
+  // Multiply vfoFrequency by 100 to match the expected units (IC-705 uses 0.01 Hz units)
+  newVFOFrequency *= 100;
+
+  // Convert the vfoFrequency to BCD (Binary-Coded Decimal) format for CI-V command
+  uint8_t freqBytes[5];
+  for (int i = 4; i >= 0; i--)
+  {
+    freqBytes[i] = ((newVFOFrequency % 10) & 0x0F); // Lower nibble
+    newVFOFrequency /= 10;
+    freqBytes[i] |= ((newVFOFrequency % 10) << 4); // Upper nibble
+    newVFOFrequency /= 10;
+  }
+
+  // Construct the CI-V command to set the vfoFrequency.
+  uint8_t request[] = {0xFE, 0xFE, radio_address, 0xE0,
+                       freqBytes[4], freqBytes[3], freqBytes[2], freqBytes[1], freqBytes[0],
+                       0x00, 0xFD};
+
+  // Send the CI-V command to the IC-705 via Bluetooth.
+  pRXCharacteristic->writeValue(request, sizeof(request), true);
+}
+
+void getStepperPositionForCurrentVFOfrequency(uint32_t currentVFOfrequency)
+{
+
+  static uint64_t prev_freq = 0;
+
+  if (currentVFOfrequency != prev_freq && currentVFOfrequency != 0)
+  {
+
+    const int maxRetries = 5;    // Maximum number of retries
+    const int retryDelay = 1000; // Delay between retries in milliseconds
+    int attempts = 0;
+    bool success = false;
+
+    while (attempts < maxRetries && !success)
+    {
+
+      attempts++;
+      Serial.printf("\nAttempt %d: Sending command to Slave to get theoretical stepper position for vfo frequency\n", attempts);
+      String response = sendCommandToSlave("getStepperPositionForCurrentVFOfrequency", String(currentVFOfrequency));
+
+      if (response.length() > 0)
+      {
+        // Parse the response to extract stepper position and vfoFrequency
+        int separatorIndex = response.indexOf(',');
+        if (separatorIndex != -1)
+        {
+          String currentStepperPositionStr = response.substring(0, separatorIndex);
+          String predictedStepperPositionStr = response.substring(separatorIndex + 1);
+          currentStepperPosition = currentStepperPositionStr.toInt();
+          predictedStepperPosition = predictedStepperPositionStr.toInt();
+          deltaSteps = currentStepperPosition - predictedStepperPosition;
+          Serial.print("Current Stepper Position (from Slave):  ");
+          Serial.println(formatNumberWithSeparator(currentStepperPosition));
+          Serial.print("Predicted Stepper Position (from Slave):");
+          Serial.println(formatNumberWithSeparator(predictedStepperPosition));
+          Serial.print("Delta Steps:                           ");
+          Serial.println(formatSignedNumberWithSeparator(deltaSteps));
+          success = true; // Mark as successful
+          M5.Lcd.setFont(medium_font);
+          M5.Lcd.setTextColor(TFT_WHITE); // Set text color to white
+          M5.Lcd.fillRect(0, 159, 320, 28, BLACK);
+
+          M5.Lcd.drawCenterString("Steps to Go:" + formatSignedNumberWithSeparator(deltaSteps), 160, 160);
+          M5.Lcd.setFont(digital_font);
+          M5.Lcd.setTextColor(TFT_GREEN); // Set text color to green
+        }
+
+        else
+        {
+          Serial.println("Unexpected response format.");
+        }
+      }
+      else
+      {
+        Serial.println("Failed to get a response from Slave. Retrying...");
+        delay(retryDelay); // Wait before retrying
+      }
+    }
+
+    if (!success)
+    {
+      Serial.println("Failed to get theoretical stepper position for vfo frequency from Slave after multiple attempts.");
+      displayErrorOnLCD("getStepperPositionForCurrentVFOfrequency()");
+    }
+
+    prev_freq = currentVFOfrequency;
+  }
+}
+
+String formatNumberWithSeparator(uint32_t value)
+{
+  // Convert the number to a string
+  String result = String(value);
+
+  // Variable to hold the result with separators
+  String formattedResult = "";
+
+  // Length of the number string
+  int len = result.length();
+
+  // Insert thousands separators every three digits from the right
+  int insertPosition = len % 3;
+
+  for (int i = 0; i < len; i++)
+  {
+    // Append current digit to the result
+    formattedResult += result[i];
+
+    // Insert separator if we are not at the end of the string
+    if ((i - insertPosition + 1) % 3 == 0 && i != len - 1)
+    {
+      formattedResult += "'"; // Separator
+    }
+  }
+
+  return formattedResult;
+}
+
+String formatSignedNumberWithSeparator(int32_t value)
+{
+  char buffer[11]; // Buffer to hold the formatted string, including null terminator
+  String result = "";
+
+  // Add the sign
+  if (value < 0)
+  {
+    result = "-" + String(abs(value));
+  }
+  else
+  {
+    result = "+" + String(value);
+  }
+
+  int len = result.length();
+  int insertPosition = len - 3;
+
+  while (insertPosition > 1)
+  { // Start from position 1 to leave the sign in front
+    result = result.substring(0, insertPosition) + "'" + result.substring(insertPosition);
+    insertPosition -= 3;
+  }
+
+  // Add padding spaces to make it 10 characters long
+  snprintf(buffer, sizeof(buffer), "%10s", result.c_str());
+
+  return String(buffer);
+}
+
+void setNewPositionForCurrentVFOfrequency(uint32_t targetFrequency)
+{
+
+  Serial.print("Sending command to Slave to move stepper to position for frequency: ");
+  Serial.println(formatVFO(targetFrequency));
+
+  String response = sendCommandToSlave("SetNewPositionForCurrentVFOfrequency", String(targetFrequency));
+
+  // Parse the response to extract estimated duration
+  int separatorIndex = response.indexOf(',');
+
+  uint32_t targetStepperPosition = response.substring(0, separatorIndex).toInt();
+  estimated_movement_duration_in_microseconds = response.substring(separatorIndex + 1).toInt();
+
+  Serial.print("Received Target Position:");
+  Serial.println(targetStepperPosition);
+
+  Serial.print("Estimated movement duration: ");
+  Serial.print(estimated_movement_duration_in_microseconds);
+  Serial.println(" microseconds");
+  Serial.println("Animating Progress Bar");
+  animated_progress_bar(15, 159, 290, 25, estimated_movement_duration_in_microseconds);
+  delay(1000); // wait 1 second to be sure.....
+  GetTunedStatusFromSlave();
+
+  // delay(5000);
+  // GetTunedStatusFromSlave();
+
+  // Now monitor the movement xxxxxx
+}
+
+/*
+void monitorStepperMovement()
+{
+
+  while (true)
+  {
+    //Serial.printf("Attempt %d: Monitoring stepper movement progress\n", attempts);
+
+    // Send a request to get the current stepper position and steps to go
+    String response = sendCommandToSlave("GetCurrentStepperPosition", "");
+
+    if (response.length() > 0)
+    {
+
+
+      // Parse the response
+      int delimiterIndex = response.indexOf(',');
+      if (delimiterIndex > 0)
+      {
+
+
+       int totalStepsToGo = response.substring(0, delimiterIndex).toInt();
+        int remainingStepsToGo = response.substring(delimiterIndex + 1).toInt();
+
+        //Serial.print("Total Steps to go: ");
+        //Serial.println(formatNumberWithSeparator(totalStepsToGo));
+        //Serial.print("Remaining Steps to go: ");
+        //Serial.println(formatNumberWithSeparator(remainingStepsToGo));
+        int progressInPercent=100-remainingStepsToGo*100/totalStepsToGo;
+        //Serial.print("Progress:");
+        //Serial.println(progressInPercent);
+        progressBar(15, 159, 290, 25, progressInPercent);
+        // Exit the loop if no more steps to go
+        if (remainingStepsToGo == 0)
+        {
+          Serial.println("Stepper movement completed.");
+          M5.Lcd.setFont(medium_font);
+          M5.Lcd.setTextColor(TFT_WHITE);        // Set text color to white
+          M5.Lcd.fillRect(0, 156, 320, 28, BLACK);
+
+          M5.Lcd.drawCenterString("Steps to Go: 0" , 160, 160);
+          M5.Lcd.setFont(digital_font);
+          M5.Lcd.setTextColor(TFT_GREEN); // Set text color to green
+          break;
+        }
+      }
+      else
+      {
+        Serial.println("Unexpected response format.");
+      }
+    }
+
+
+    delay(250); // Adjust the delay as needed
+  }
+}
+*/
+
+// Function to draw a progress bar with animation
+void animated_progress_bar(int x, int y, int w, int h, unsigned long estimated_movement_duration_in_microseconds)
+{
+  unsigned long start_time = micros();
+  unsigned long end_time = start_time + estimated_movement_duration_in_microseconds;
+
+  // Define colors
+  uint16_t backgroundColor = TFT_OLIVE; // Background color of the progress bar
+  uint16_t fillColor = TFT_RED;         // Fill color representing progress
+
+  // Draw the background of the progress bar once
+  M5.Lcd.fillRect(x, y, w, h, backgroundColor);
+
+  int previousProgressWidth = 0;
+
+  while (micros() < end_time)
+  {
+    // Calculate the current elapsed time
+    unsigned long current_time = micros();
+    unsigned long elapsed_time = current_time - start_time;
+
+    // Calculate progress percentage based on elapsed time
+    uint8_t progress_value = map(elapsed_time, 0, estimated_movement_duration_in_microseconds, 0, 100);
+    progress_value = constrain(progress_value, 0, 100);
+
+    // Calculate width of the progress based on the value
+    int progressWidth = map(progress_value, 0, 100, 0, w);
+
+    // Update only the changed portion of the progress bar
+    if (progressWidth != previousProgressWidth)
+    {
+      if (progressWidth > previousProgressWidth)
+      {
+        // Draw the newly filled portion
+        M5.Lcd.fillRect(x + previousProgressWidth, y, progressWidth - previousProgressWidth, h, fillColor);
+      }
+      else
+      {
+        // Clear the portion that was previously filled but is no longer
+        M5.Lcd.fillRect(x + progressWidth, y, previousProgressWidth - progressWidth, h, backgroundColor);
+      }
+      previousProgressWidth = progressWidth;
+    }
+
+    // Optionally add a small delay to control the update rate and smoothness
+    delay(10); // Adjust delay for desired smoothness
+  }
+
+  // Ensure the progress bar is fully filled at the end
+  M5.Lcd.fillRect(x, y, w, h, backgroundColor); // Redraw the background to clear old progress
+  M5.Lcd.fillRect(x, y, w, h, fillColor);       // Fill the bar completely at the end
+}
+
+void vibrate()
+{
+
+  M5.Power.setVibration(255); // Set vibration with current intensity
+  delay(500);                 // Wait for 1 second
+  M5.Power.setVibration(0);   // Set vibration with current intensity
+}
+
+void buttonLeftPressed()
+{
+  vibrate();
+}
+
+
+void buttonMiddlePressed()
+
+  {
+    vibrate();
+    delay(400);
+    vibrate();
+  }
+void buttonRightPressed()
+{
+    Serial.println("Right Button Pressed - Starting Frequency Loop");
+
+    // Loop through all frequencies in the sequence
+    for (int i = 0; i < sizeof(frequencySequence) / sizeof(frequencySequence[0]); i++)
+    {
+        uint32_t targetFrequency = frequencySequence[i];
+        Serial.print("Setting new position for frequency: ");
+        Serial.println(targetFrequency);
+
+        //setNewPositionForCurrentVFOfrequency(targetFrequency);
+
+        // Optional: Add a delay between each frequency change if needed
+        delay(4000); // Wait for 1 second before moving to the next frequency
+    }
+
+    Serial.println("Frequency Loop Complete");
+}
+

@@ -1,0 +1,1236 @@
+#include <Arduino.h>
+#include "BLEDevice.h"
+#include "esp_bt_main.h"
+#include "esp_bt_device.h"
+// display related
+#include <Arduino_GFX_Library.h>
+#include <FreeMonoBold24pt7b.h>
+#include <FreeMono8pt7b.h>
+#include <FreeMonoBold12pt7b.h>
+#include <hb9iiuProgressBar.h>
+// WIFI RElated
+#include <WiFi.h>
+#include <HTTPClient.h>
+
+// Initialize your display
+// http://www.lcdwiki.com/2.2inch_SPI_Module_ILI9341_SKU%3AMSP2202
+#define GFX_BL 22 // backlight pin marked LED on Board
+Arduino_DataBus *bus = new Arduino_ESP32SPI(27 /* DC */, 5 /* CS */, 18 /* SCK */, 23 /* MOSI */, -1 /* MISO */);
+Arduino_GFX *gfx = new Arduino_ILI9341(bus, 33 /* RST */, 0 /* rotation */, false /* IPS */);
+HB9IIUProgressBar progressBar(gfx); // Create an instance of the progress bar
+
+//-----------------------------------------------------------------------------------------------
+
+// Define the frequency ranges
+#define LOWER_40M 7000000                            
+#define UPPER_40M 7300000                            
+#define LOWER_20M 14000000                           
+#define UPPER_20M 14350000                          
+unsigned long CurrentVFOFrequency = 0; // VFO frequency in Hz
+unsigned long previousVFOFrequency = 0;       // to decide wether to refresh display or not 
+unsigned long previousResonanceFrequency = 0; // to decide wether to refresh display or not 
+const char *deviceName = "IC705-MLA-HB9IIU"; // Bluetooth Device Name
+int currentYonTFT = 15; // to control new line position when printing on TFT display
+bool reconnectFlag = false; // used for display refreshing purposes
+
+#define SSID "HB9IIU-MLA" // WiFi SSID to connect to
+IPAddress slaveIP(192, 168, 4, 1); // IP address of the SLAVE device to send HTTP commands to
+HTTPClient http;                   // HTTPClient instance
+
+uint64_t theoreticalResonanceFrequency = 0; // theoretical resonance frequency at current stepper position
+
+uint32_t currentStepperPosition = 0;   // current stepper position
+uint32_t predictedStepperPosition = 0; // predicted stepper position from lookup table
+uint32_t deltaSteps = 0;               // diff between current stepper position and predicted stepper position
+// Variable to hold the decoded frequency
+// Variable to hold the last known frequency
+//unsigned long last_VFO_Frequency = 0; // Last known VFO frequency in Hz
+// Variables for tracking PTT state and double-click detection
+unsigned long lastPTTPressTime = 0;
+unsigned long doubleClickThreshold = 300; // Adjust the time threshold as needed (in milliseconds)
+bool PTTFirstClickDetected = false;
+bool errorBanner = false;
+long estimated_movement_duration_in_microseconds;
+//-----------------------------------------------------------------------------------------------
+
+// UUIDs for the remote Nordic UART service and its characteristics
+static BLEUUID serviceUUID("14cf8001-1ec2-d408-1b04-2eb270f14203");
+static BLEUUID charUUID_RX("14cf8002-1ec2-d408-1b04-2eb270f14203"); // RX Characteristic
+static BLEUUID charUUID_TX("14cf8002-1ec2-d408-1b04-2eb270f14203"); // TX Characteristic
+
+// Variables for BLE connection state and characteristics
+static BLEAddress *pServerAddress;
+static boolean doConnect = false;
+static boolean connected = false;
+static BLERemoteCharacteristic *pTXCharacteristic;
+static BLERemoteCharacteristic *pRXCharacteristic;
+uint8_t radio_address = 0xA4; // A4 for IC-705
+
+
+
+
+//-----------------------------------------------------------------------------------------------
+
+// Function prototypes
+void initTFTscreen();
+void splashScreen();
+void printOnTFT(Arduino_GFX *gfx, const char *text);
+void establish_WIFI_connection_with_Slave();
+void displaySignalStrength(Arduino_GFX *gfx, int8_t rssi, int y);
+void displayVFOfrequencyOnTFT(unsigned long frequency);
+void displayRESONANCEfrequencyOnTFT(unsigned long frequency);
+String formatStepperPosForConsoleOutput(uint32_t value);
+String formatStepsToGoForTFT(int32_t stepsToGo);
+String formatStepsToGoForConsole(int32_t value);
+void displayStepperInfo(unsigned long currentPos, unsigned long stepsToGo, bool inRange);
+String getLinkQualityDescription(int8_t rssi);
+char *formatFrequencyForConsoleOutput(uint64_t vfo);
+void GetTunedStatusFromSlave();
+void displayERRORbannerOnTFT(const char *message, int ycord);
+void clearERRORbannerOnTFT(int ycord);
+void setNewPositionForCurrentVFOfrequency(uint32_t targetFrequency);
+void displayWiFiStrengthOnTFT();
+void checkIfWifiIsStillConnected();
+
+//-----------------------------------------------------------------------------------------------
+
+String getLinkQualityDescription(int8_t rssi)
+{
+    if (rssi > -30)
+    {
+        return "Amazing"; // Strong signal
+    }
+    else if (rssi > -67)
+    {
+        return "Great"; // Good signal
+    }
+    else if (rssi > -70)
+    {
+        return "Average"; // Fair signal
+    }
+    else if (rssi > -80)
+    {
+        return "Poor"; // Weak signal
+    }
+    else if (rssi > -90)
+    {
+        return "Unusable"; // Very weak signal
+    }
+    else
+    {
+        return "Unusable"; // Signal is too weak
+    }
+}
+
+String sendCommandToSlave(const String &command, const String &argument)
+{
+    String postData = "command=" + command;
+    if (argument.length() > 0)
+    {
+        postData += "&argument=" + argument;
+    }
+    // Serial.println("Sending POST request with data: " + postData);
+    int httpResponseCode = http.POST(postData); // Send POST request
+    if (httpResponseCode > 0)
+    {
+        // Serial.print("HTTP Response code: ");
+        // Serial.println(httpResponseCode);
+        String response = http.getString();
+        // Serial.print("Raw Response: '");
+        // Serial.print(response);
+        // Serial.println("'");
+        return response;
+    }
+    else
+    {
+        Serial.print("Error on sending POST: ");
+        Serial.println(httpResponseCode);
+        return "";
+    }
+}
+
+void establish_WIFI_connection_with_Slave()
+{
+    Serial.print("Establishing WiFi Connection with Slave...");
+    printOnTFT(gfx, "Connecting To Slave via WiFi...");
+
+    // Attempt to connect to WiFi
+    WiFi.begin(SSID);
+
+    int attemptCounter = 0;
+    String dots = "";
+
+    while (WiFi.status() != WL_CONNECTED && attemptCounter < 15)
+    {
+        delay(500);
+        dots += "*"; // Add a dot for each attempt
+        Serial.print(".");
+        attemptCounter++; // Increment the attempt counter
+    }
+
+    if (WiFi.status() == WL_CONNECTED)
+    {
+        // Display WiFi signal strength
+        int8_t rssi = WiFi.RSSI();                            // Get WiFi RSSI (signal strength)
+        String linkQuality = getLinkQualityDescription(rssi); // Ensure this function is defined
+        Serial.println("\nSuccessful Wifi Connection to Slave");
+        Serial.print("Signal Quality:");
+        Serial.println(linkQuality);
+
+        printOnTFT(gfx, "Wifi Connection to Slave OK");
+        String message = "Link Quality: " + linkQuality;
+        printOnTFT(gfx, message.c_str());
+        // Display the WiFi signal strength graphically at a specific Y position
+        displaySignalStrength(gfx, rssi, currentYonTFT - 10);
+        currentYonTFT = currentYonTFT + 28; // move the cursor down
+
+        // Initialize HTTPClient
+        String url = String("http://") + slaveIP.toString() + "/command"; // Ensure slaveIP is defined
+        http.begin(url);                                                  // Ensure http is defined and initialized
+        http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+    }
+    else
+    {
+        Serial.println("\nConnection failed, rebooting in 3 seconds");
+        printOnTFT(gfx, "No WiFi Connection to Slave");
+        printOnTFT(gfx, "Please check your Slave");
+        printOnTFT(gfx, "Re-Booting in 3 seconds");
+        delay(3000);
+        ESP.restart();
+    }
+}
+
+void GetTunedStatusFromSlave()
+{
+    const int maxRetries = 5;    // Maximum number of retries
+    const int retryDelay = 1000; // Delay between retries in milliseconds
+    int attempts = 0;
+    bool success = false;
+
+    while (attempts < maxRetries && !success)
+    {
+        attempts++;
+        Serial.printf("\nAttempt %d: Getting Current stepper position and associated frequency from Slave\n", attempts);
+        String response = sendCommandToSlave("GetTunedStatusFromSlave", "");
+
+        if (response.length() > 0)
+        {
+            // Parse the response to extract stepper position and VFO_Frequency
+            int separatorIndex = response.indexOf(',');
+            if (separatorIndex != -1)
+            {
+                String stepperPositionStr = response.substring(0, separatorIndex);
+                String frequencyStr = response.substring(separatorIndex + 1);
+                currentStepperPosition = stepperPositionStr.toInt();
+                theoreticalResonanceFrequency = frequencyStr.toInt();
+                Serial.print("Current Stepper Position (from slave): ");
+                Serial.println(formatStepperPosForConsoleOutput(currentStepperPosition));
+                Serial.print("Resulting Lookup Resonance Frequency:  ");
+                Serial.println(formatFrequencyForConsoleOutput(theoreticalResonanceFrequency));
+
+                Serial.println("");
+                success = true; // Mark as successful xxxxxxxxx
+
+                // updateRESONANCEfreqOnLCD(theoreticalResonanceFrequency);
+            }
+            else
+            {
+                Serial.println("Unexpected response format.");
+            }
+        }
+        else
+        {
+            Serial.println("Failed to get a response from Slave. Retrying...");
+            delay(retryDelay); // Wait before retrying
+        }
+    }
+
+    if (!success)
+    {
+        Serial.println("Failed to get tuned status from Slave after multiple attempts.");
+        // displayErrorOnLCD("GetTunedStatusFromSlave()");
+    }
+}
+// Function to decode the frequency from the received data
+void decodeFrequency(uint8_t *pData, size_t length)
+{
+    if (length != 11)
+        return; // Ensure that we have the valid length for frequency data
+
+    // Extract the frequency blocks based on the expected positions
+    uint8_t bloc_1 = pData[5];
+    uint8_t bloc_2 = pData[6];
+    uint8_t bloc_3 = pData[7];
+    uint8_t bloc_4 = pData[8];
+    uint8_t bloc_5 = pData[9];
+
+    // Validate that each nibble is within BCD range (0 to 9)
+    if (((bloc_1 & 0xF0) >> 4) > 9 || (bloc_1 & 0x0F) > 9 ||
+        ((bloc_2 & 0xF0) >> 4) > 9 || (bloc_2 & 0x0F) > 9 ||
+        ((bloc_3 & 0xF0) >> 4) > 9 || (bloc_3 & 0x0F) > 9 ||
+        ((bloc_4 & 0xF0) >> 4) > 9 || (bloc_4 & 0x0F) > 9 ||
+        ((bloc_5 & 0xF0) >> 4) > 9 || (bloc_5 & 0x0F) > 9)
+    {
+        Serial.println("Invalid BCD data detected. Skipping this packet.");
+        return;
+    }
+
+    // Decode each block into its respective digits
+    int a = (bloc_1 & 0xF0) >> 4;
+    int b = bloc_1 & 0x0F;
+    int c = (bloc_2 & 0xF0) >> 4;
+    int d = bloc_2 & 0x0F;
+    int e = (bloc_3 & 0xF0) >> 4;
+    int f = bloc_3 & 0x0F;
+    int g = (bloc_4 & 0xF0) >> 4;
+    int h = bloc_4 & 0x0F;
+    int i = (bloc_5 & 0xF0) >> 4;
+    int j = bloc_5 & 0x0F;
+
+    // Calculate the frequency in Hz
+    unsigned long decodedFrequency = (unsigned long)(i * 1e9 + j * 1e8 + g * 1e7 + h * 1e6 + e * 1e5 + f * 1e4 + c * 1e3 + d * 1e2 + a * 10 + b);
+
+    // Validate the decoded frequency range
+    if (decodedFrequency < 1000000 || decodedFrequency > 30000000)
+    {
+        Serial.println("Decoded frequency out of valid range. Skipping this packet.");
+        return;
+    }
+
+    // Check if the frequency has changed
+    if (decodedFrequency != previousVFOFrequency)
+    {
+
+        CurrentVFOFrequency = decodedFrequency;
+        // Print the decoded frequency
+        Serial.print("CAT Decoded VFO Frequency: ");
+        Serial.println(formatFrequencyForConsoleOutput(decodedFrequency));
+        displayVFOfrequencyOnTFT(decodedFrequency);
+
+        // Update the last known frequency
+        previousVFOFrequency = decodedFrequency;
+        CurrentVFOFrequency = decodedFrequency;
+    }
+}
+// Function to detect double PTT
+void PTT_double_clicked()
+{
+    Serial.println("Double Click Detected");
+    // Check if the frequency is outside the defined ranges
+    if (!((CurrentVFOFrequency >= LOWER_40M && CurrentVFOFrequency <= UPPER_40M) ||
+          (CurrentVFOFrequency >= LOWER_20M && CurrentVFOFrequency <= UPPER_20M)))
+    {
+        Serial.println("Frequency is outside the defined ranges.");
+        return; // Return if outside both ranges
+    }
+//draw a black recatangle at the bottom to prepare area for progress bar
+        gfx->fillRect(0, 195, 320, 45, BLACK); 
+    setNewPositionForCurrentVFOfrequency(CurrentVFOFrequency);
+    GetTunedStatusFromSlave();
+    displayRESONANCEfrequencyOnTFT(theoreticalResonanceFrequency);
+}
+// Function declaration for converting a string to a CIV format array
+void stringToCIVArray(const char *inputString, uint8_t *outputArray, uint8_t &outputLength, uint8_t commandPrefix = 0x62);
+// Notification callback function
+static void notifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
+{
+
+    /*for (int i = 0; i < length; i++)
+     {
+         Serial.print(pData[i], HEX); // Print raw data to UART in hexadecimal format
+         Serial.print(" ");
+         if (pData[i] == 0xFD) // If the end marker is found, print a new line
+             Serial.println();
+     }*/
+
+    // Check for PTT status change
+    if (length == 8 &&
+        pData[0] == 0xFE && pData[1] == 0xFE && // Start of the packet
+        pData[2] == 0xE0 &&                     // Source address is always 0xE0 in this case
+        pData[3] == radio_address &&            // Verify this matches the radio address (0xA4)
+        pData[4] == 0x1C &&                     // PTT command identifier
+        pData[5] == 0x00)                       // Sub-command for PTT status
+    {
+        bool PTTStatus = (pData[6] == 0x01); // PTT ON if 0x01, OFF if 0x00
+
+        if (PTTStatus)
+        {
+            // PTT was pressed
+            unsigned long currentTime = millis();
+            if (PTTFirstClickDetected && (currentTime - lastPTTPressTime <= doubleClickThreshold))
+            {
+                // Double click detected
+                PTT_double_clicked();
+                PTTFirstClickDetected = false; // Reset for the next detection
+            }
+            else
+            {
+                // Register the first click
+                PTTFirstClickDetected = true;
+                lastPTTPressTime = currentTime;
+            }
+        }
+    }
+
+    // Call the function to decode the frequency
+    decodeFrequency(pData, length);
+}
+// Function to connect to the BLE server
+bool connectToServer(BLEAddress pAddress)
+{
+    Serial.print("Establishing a connection to device address: ");
+    Serial.println(pAddress.toString().c_str());
+
+    BLEClient *pClient = BLEDevice::createClient();
+    Serial.println(" - Created client");
+
+    // Connect to the remote BLE Server
+    pClient->connect(pAddress);
+    Serial.println(" - Connected to server");
+
+    // Set maximum MTU (default is 23 otherwise)
+    pClient->setMTU(517);
+
+    // Obtain a reference to the Nordic UART service on the remote BLE server
+    BLERemoteService *pRemoteService = pClient->getService(serviceUUID);
+    if (pRemoteService == nullptr)
+    {
+        Serial.print("Failed to find Nordic UART service UUID: ");
+        Serial.println(serviceUUID.toString().c_str());
+        pClient->disconnect();
+        return false;
+    }
+    Serial.println(" - Found our service");
+
+    // Obtain references to the TX and RX characteristics of the Nordic UART service
+    pTXCharacteristic = pRemoteService->getCharacteristic(charUUID_TX);
+    if (pTXCharacteristic == nullptr)
+    {
+        Serial.print("Failed to find TX characteristic UUID: ");
+        Serial.println(charUUID_TX.toString().c_str());
+        pClient->disconnect();
+        return false;
+    }
+    Serial.println(" - Remote BLE TX characteristic reference established");
+
+    std::string value = pTXCharacteristic->readValue();
+    Serial.print("The characteristic value is currently: ");
+    Serial.println(value.c_str());
+
+    pRXCharacteristic = pRemoteService->getCharacteristic(charUUID_RX);
+    if (pRXCharacteristic == nullptr)
+    {
+        Serial.print("Failed to find RX characteristic UUID: ");
+        Serial.println(charUUID_RX.toString().c_str());
+        return false;
+    }
+    Serial.println(" - Remote BLE RX characteristic reference established");
+
+    value = pRXCharacteristic->readValue();
+    Serial.print("The characteristic value was: ");
+    Serial.println(value.c_str());
+
+    // Register notification callback
+    if (pTXCharacteristic->canNotify())
+        pTXCharacteristic->registerForNotify(notifyCallback);
+
+    uint8_t CIV_ID0[] = {0xFE, 0xF1, 0x00, 0x61, 0x30, 0x30, 0x30, 0x30, 0x31, 0x31, 0x30, 0x31, 0x2D, 0x30, 0x30, 0x30, 0x30, 0x2D, 0x31, 0x30, 0x30, 0x30, 0x2D, 0x38, 0x30, 0x30, 0x30, 0x2D, 0x30, 0x30, 0x38, 0x30, 0x35, 0x46, 0x39, 0x42, 0x33, 0x34, 0x46, 0x42, 0xFD}; // Send our UUID
+    pRXCharacteristic->writeValue(CIV_ID0, sizeof(CIV_ID0));
+    pRXCharacteristic->canNotify();
+    delay(20);
+
+    // hardcoding "IC705-MLA-HB9IIU"
+    uint8_t CIV_ID1[] = {0xFE, 0xF1, 0x00, 0x62, 0x49, 0x43, 0x37, 0x30, 0x35, 0x2D, 0x4D, 0x4C, 0x41, 0x2D, 0x48, 0x42, 0x39, 0x49, 0x49, 0x55, 0xFD}; // Send Name
+
+    pRXCharacteristic->writeValue(CIV_ID1, sizeof(CIV_ID1));
+    pRXCharacteristic->canNotify();
+    delay(20); // a small delay was required or this message would be missed (collision likely).
+
+    // Send Token
+    uint8_t CIV_ID2[] = {0xFE, 0xF1, 0x00, 0x63, 0xEE, 0x39, 0x09, 0x10, 0xFD}; // Send Token
+    pRXCharacteristic->writeValue(CIV_ID2, 9);
+    pRXCharacteristic->canNotify();
+    delay(20);
+
+    connected = true;
+    return true;
+}
+// Function to convert a string to a uint8_t array in the CIV format
+void stringToCIVArray(const char *inputString, uint8_t *outputArray, uint8_t &outputLength, uint8_t commandPrefix)
+{
+    const uint8_t CIV_HEADER[] = {0xFE, 0xF1, 0x00, commandPrefix};
+    uint8_t endMarker = 0xFD;
+    uint8_t headerLength = sizeof(CIV_HEADER);
+
+    // Copy the header to the output array
+    for (uint8_t i = 0; i < headerLength; ++i)
+    {
+        outputArray[i] = CIV_HEADER[i];
+    }
+
+    // Copy the input string to the output array in ASCII format
+    uint8_t i = 0;
+    while (inputString[i] != '\0')
+    {
+        outputArray[headerLength + i] = inputString[i];
+        ++i;
+    }
+
+    // Add the end marker
+    outputArray[headerLength + i] = endMarker;
+
+    // Set the total length of the output array
+    outputLength = headerLength + i + 1;
+}
+// Callback class for handling advertised devices
+class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
+{
+    void onResult(BLEAdvertisedDevice advertisedDevice)
+    {
+        if (advertisedDevice.haveServiceUUID() && advertisedDevice.getServiceUUID().equals(serviceUUID))
+        {
+            Serial.println("Found a device with the desired ServiceUUID!");
+            printOnTFT(gfx, "Found device!");
+
+            advertisedDevice.getScan()->stop();
+            pServerAddress = new BLEAddress(advertisedDevice.getAddress());
+            doConnect = true;
+        }
+    }
+};
+void getStepperPositionForCurrentVFOfrequency(uint32_t currentVFOfrequency);
+void setNewPositionForCurrentVFOfrequency(uint32_t targetFrequency)
+{
+
+    Serial.print("Sending command to Slave to move stepper to position for frequency: ");
+    Serial.println(formatFrequencyForConsoleOutput(targetFrequency));
+
+    String response = sendCommandToSlave("SetNewPositionForCurrentVFOfrequency", String(targetFrequency));
+
+    // Parse the response to extract estimated duration
+    int separatorIndex = response.indexOf(',');
+
+    uint32_t targetStepperPosition = response.substring(0, separatorIndex).toInt();
+    estimated_movement_duration_in_microseconds = response.substring(separatorIndex + 1).toInt();
+
+    Serial.print("Received Target Position:");
+    Serial.println(targetStepperPosition);
+
+    Serial.print("Estimated movement duration: ");
+    Serial.print(estimated_movement_duration_in_microseconds);
+    Serial.println(" microseconds");
+    Serial.println("Animating Progress Bar");
+    progressBar.showProgress(estimated_movement_duration_in_microseconds, 200);
+    GetTunedStatusFromSlave();
+
+    displayStepperInfo(currentStepperPosition, 0, true);
+
+    // animated_progress_bar(15, 159, 290, 25, estimated_movement_duration_in_microseconds);
+
+    // GetTunedStatusFromSlave();
+
+    // delay(5000);
+    // GetTunedStatusFromSlave();
+
+    // Now monitor the movement xxxxxx
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+// DISPLAY RELATED FUNCTIONS
+// Function to initialize the tft display
+void initTFTscreen()
+{
+    gfx->begin();
+    pinMode(GFX_BL, OUTPUT);    // TFT LED pin
+    digitalWrite(GFX_BL, HIGH); // Turn on backlight
+    gfx->fillScreen(BLACK);
+    gfx->setRotation(1);
+}
+// Function to display the splash screen
+void splashScreen()
+{
+    // Array of text colors: RED, GREEN, BLUE
+    uint16_t textColors[] = {RED, GREEN, BLUE, WHITE};
+
+    // Display the text in three different colors 2 times
+    for (int i = 0; i < 2; i++)
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            gfx->fillScreen(BLACK); // Clear the screen with a black background
+
+            // Set the font and text color
+            gfx->setFont(&FreeMonoBold24pt7b);
+            gfx->setTextColor(textColors[i]); // Set text color to the current color in the array
+
+            // Determine the width and height of the text to center it
+            int16_t x1, y1;
+            uint16_t w, h;
+
+            // Display "HB9IIU" centered on the first line
+            gfx->getTextBounds("HB9IIU", 0, 0, &x1, &y1, &w, &h);
+            int16_t xpos1 = (gfx->width() - w) / 2;
+            int16_t ypos1 = (gfx->height() / 2) - (h * 1.5); // Adjust the factor to position it higher
+            gfx->setCursor(xpos1, ypos1);
+            gfx->print("HB9IIU");
+
+            // Display "MLA" centered on the second line
+            gfx->getTextBounds("MLA", 0, 0, &x1, &y1, &w, &h);
+            int16_t xpos2 = (gfx->width() - w) / 2;
+            int16_t ypos2 = ypos1 + h + 30; // Adjust the spacing as needed
+            gfx->setCursor(xpos2, ypos2);
+            gfx->print("MLA");
+
+            // Display "CONTROLLER" centered on the third line
+            gfx->getTextBounds("CONTROLLER", 0, 0, &x1, &y1, &w, &h);
+            int16_t xpos3 = (gfx->width() - w) / 2;
+            int16_t ypos3 = ypos2 + h + 30; // Adjust the spacing as needed
+            gfx->setCursor(xpos3, ypos3);
+            gfx->print("CONTROLLER");
+            // Wait for 80 ms before switching to the next color
+            delay(80);
+        }
+    }
+    delay(1000);
+    // Finally, clear the screen
+    gfx->fillScreen(BLACK); // Clear the screen
+}
+// Function to format number with dots as thousands separators and leading space if needed
+String formatFrequencyNumbers(unsigned long number)
+{
+    String formattedNumber = "";
+
+    // Add leading space for numbers less than 10,000,000
+    if (number < 10000000)
+    {
+        formattedNumber += ' '; // Leading space
+    }
+
+    String numStr = String(number);
+    int len = numStr.length();
+
+    for (int i = 0; i < len; i++)
+    {
+        if (i > 0 && (len - i) % 3 == 0)
+        {
+            formattedNumber += '.'; // Add a dot as a thousands separator
+        }
+        formattedNumber += numStr[i]; // Add the next digit
+    }
+
+    return formattedNumber;
+}
+// Function to format stepper numbers with dots as thousands separators and leading spaces for alignment
+String formatStepperPosForTFT(unsigned long number)
+{
+    String formattedNumber = "";
+    String numStr = String(number);
+    int len = numStr.length();
+
+    // Add leading spaces based on the total width of 10 characters
+    int totalWidth = 10;
+    int spacesToAdd = totalWidth - (len + (len - 1) / 3); // Adjust for dots added as separators
+
+    for (int i = 0; i < spacesToAdd; i++)
+    {
+        formattedNumber += ' '; // Add leading space
+    }
+
+    // Insert dots as thousands separators
+    for (int i = 0; i < len; i++)
+    {
+        if (i > 0 && (len - i) % 3 == 0)
+        {
+            formattedNumber += '.'; // Add a dot as a thousands separator
+        }
+        formattedNumber += numStr[i]; // Add the next digit
+    }
+
+    return formattedNumber;
+}
+
+String formatStepsToGoForTFT(int32_t stepsToGo)
+{
+    // Convert to absolute value and determine the sign
+    bool isNegative = stepsToGo < 0;
+    int32_t absValue = abs(stepsToGo);
+
+    // Format the absolute value with thousand separators
+    String formatted = "";
+    int counter = 0;
+
+    do
+    {
+        if (counter > 0 && counter % 3 == 0)
+        {
+            formatted = "." + formatted;
+        }
+        formatted = String(absValue % 10) + formatted;
+        absValue /= 10;
+        counter++;
+    } while (absValue > 0);
+
+    // Add the sign
+    if (isNegative)
+    {
+        formatted = "-" + formatted;
+    }
+    else
+    {
+        formatted = "+" + formatted;
+    }
+
+    // Add leading spaces to make it exactly 10 characters
+    while (formatted.length() < 10)
+    {
+        formatted = " " + formatted;
+    }
+
+    return formatted;
+}
+
+// Function to display VFO frequency with alignment
+void displayVFOfrequencyOnTFT(unsigned long frequency)
+{
+    // Only update the display if the frequency has changed
+    if (frequency != previousVFOFrequency || reconnectFlag == true)
+    {
+        reconnectFlag = false;
+        String formattedFrequency = formatFrequencyNumbers(frequency);
+
+        // Set cursor and display the new frequency in green
+        gfx->setFont(&FreeMonoBold24pt7b); // Use the bold font
+
+        // Clear the area where the frequency will be displayed
+        int16_t x, y; // Coordinates of the text
+        uint16_t textWidth, textHeight;
+        gfx->getTextBounds(formattedFrequency.c_str(), 0, 0, &x, &y, &textWidth, &textHeight);
+
+        // Clear the area for the old frequency display
+        gfx->fillRect(25, 35 - textHeight, textWidth + 10, textHeight + 2, BLACK); // Clear area
+
+        gfx->setCursor(25, 35);
+        gfx->setTextColor(GREEN); // Set text color to green
+
+        gfx->println(formattedFrequency);
+
+        // Update the previous frequency
+        previousVFOFrequency = frequency; // Update previous frequency
+    }
+}
+// Function to display Resonance frequency with alignment
+void displayRESONANCEfrequencyOnTFT(unsigned long frequency)
+{
+    // Only update the display if the frequency has changed
+    if (frequency != previousResonanceFrequency || reconnectFlag == true)
+    {
+        // Calculate the difference between VFO and theoretical resonance frequency
+        // we do this because returned resonance frequency after a tuning will never exactly
+        // match with target frequency due to roundings which can be confusing
+        int difference = frequency - CurrentVFOFrequency;
+        // Check if the absolute difference is less than 9 (9 was choosen by experience)
+        if (difference < 9 && difference > -9)
+        {
+            frequency = CurrentVFOFrequency;
+        }
+        String formattedFrequency = formatFrequencyNumbers(frequency);
+        gfx->setFont(&FreeMonoBold24pt7b); // Use the bold font
+
+        // Clear the area where the frequency will be displayed
+        int16_t x, y; // Coordinates of the text
+        uint16_t textWidth, textHeight;
+        gfx->getTextBounds(formattedFrequency.c_str(), 0, 0, &x, &y, &textWidth, &textHeight);
+
+        // Clear the area for the old frequency display
+        gfx->fillRect(25, 95 - textHeight, textWidth + 10, textHeight + 2, BLACK); // Clear area
+
+        // Set cursor and display the new frequency in yellow
+        gfx->setCursor(25, 95);
+        gfx->setTextColor(YELLOW); // Set text color to yellow
+
+        gfx->println(formattedFrequency);
+
+        // Update the previous frequency
+        previousResonanceFrequency = frequency; // Update previous frequency
+    }
+}
+// Function to display stepper information with alignment and formatting
+void displayStepperInfo(unsigned long currentPos, unsigned long stepsToGo, bool inRange)
+{
+    String formattedCurrentPos = formatStepperPosForTFT(currentPos);
+    String formattedStepsToGo = formatStepsToGoForTFT(stepsToGo);
+
+    // Clear the area for the old text display
+    gfx->fillRect(182, 128, 135, 47, BLACK); // Clear area for Current Pos.
+
+    // Set cursor and display the current position
+    gfx->setTextColor(WHITE);
+    // gfx->setFont(&FreeMonoBold9pt7b);
+    gfx->setFont(&FreeMonoBold12pt7b);
+
+    gfx->setCursor(170, 145);
+    gfx->println(formattedCurrentPos);
+
+    if (inRange == true)
+    {
+        gfx->setCursor(170, 170);
+        gfx->println(formattedStepsToGo);
+    }
+    else
+    {
+        gfx->setCursor(170, 170);
+        gfx->println("    ......");
+    }
+}
+// Function to display static texts on teh display
+void populateDisplayWithStaticText()
+{
+    gfx->fillScreen(BLACK); // Clear the screen
+    gfx->setFont(&FreeMono8pt7b);
+    gfx->setTextColor(gfx->color565(192, 192, 192));
+    gfx->setCursor(100, 53);
+    gfx->println("VFO FREQUENCY");
+    gfx->setCursor(68, 113);
+    gfx->println("RESONANCE FREQUENCY");
+    gfx->setFont(&FreeMonoBold12pt7b);
+    gfx->setTextColor(WHITE);
+    gfx->setCursor(13, 145);
+    gfx->println("Current Pos.");
+    gfx->setCursor(13, 170);
+    gfx->println("Steps to go.");
+}
+// Function to print text on the TFT display and move to the next line
+void printOnTFT(Arduino_GFX *gfx, const char *text)
+{
+    gfx->setFont(&FreeMono8pt7b); // Use the bold font
+    gfx->setTextColor(WHITE);
+    if (currentYonTFT > 240)
+    {
+        gfx->fillScreen(BLACK); // Clear the screen with a black background
+        currentYonTFT = 15;     // Start at the top of the display
+    }
+    int lineHeight = 20; // Adjust this value according to your font size (e.g., FreeMonoBold12pt7b)
+
+    // Print the text at the current cursor position
+    gfx->setCursor(10, currentYonTFT); // Set x to 10, adjust as needed
+    gfx->println(text);
+
+    // Move to the next line
+    currentYonTFT += lineHeight;
+}
+// Function to display error banner with a message
+void displayERRORbannerOnTFT(const char *message, int ycord)
+{
+    // Set background color to red
+    gfx->fillRect(0, ycord - 20, gfx->width(), 30, RED); // Banner size, adjust height if needed
+
+    // Set text color to white and center the text horizontally
+    gfx->setTextColor(WHITE, RED); // White text on red background
+
+    // Get width of the message to center it
+    int16_t x1, y1;
+    uint16_t w, h;
+    gfx->getTextBounds(message, 0, ycord, &x1, &y1, &w, &h);
+
+    // Calculate X coordinate to center the text horizontally
+    int xcord = (gfx->width() - w) / 2;
+
+    // Draw the message
+    gfx->setCursor(xcord, ycord);
+    gfx->print(message);
+    errorBanner = true;
+}
+// Function to clear the error banner by drawing a black rectangle
+void clearERRORbannerOnTFT(int ycord)
+{
+    // Draw a black rectangle over the same area as the error banner
+    gfx->fillRect(0, ycord - 20, gfx->width(), 30, BLACK); // Adjust height and Y position to match error banner
+    errorBanner = false;
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+
+// Setup function
+void setup()
+{
+    Serial.begin(115200);
+    initTFTscreen();
+    splashScreen();
+    Serial.println("HB9IIU MLA Controller Starting");
+    printOnTFT(gfx, "HB9IIU MLA Controller Starting");
+    establish_WIFI_connection_with_Slave();
+    Serial.println("Scanning for Bluetooth devices");
+    printOnTFT(gfx, "Scanning for Bluetooth devices");
+
+    BLEDevice::init("");
+    BLEScan *pBLEScan = BLEDevice::getScan();
+    pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
+    pBLEScan->setActiveScan(true);
+    BLEScanResults foundDevices = pBLEScan->start(5, false);
+
+    Serial.print("Devices found: ");
+    Serial.println(foundDevices.getCount());
+    // Convert the count to a string and concatenate it with the text
+    String message = "Devices found: " + String(foundDevices.getCount());
+    // Print the message on the TFT display
+    printOnTFT(gfx, message.c_str()); // Use c_str() to convert the String to a C-style string
+    Serial.println("Scan done!");
+    printOnTFT(gfx, "Scan done!");
+
+    if (!doConnect)
+    {
+        Serial.print("Scan did not reveal device: ");
+        Serial.println(deviceName);
+        // Combine the text with the device name
+        String message = String(deviceName) + " not found";
+        // Print the combined message on the TFT display
+        printOnTFT(gfx, message.c_str()); 
+    }
+}
+
+//  loop function
+void loop()
+{
+    // Rescan only if not connected and doConnect is false
+    if (!connected && !doConnect)
+    {
+        Serial.println("Rescanning for device...");
+        printOnTFT(gfx, "Rescanning for device...");
+
+        BLEScan *pBLEScan = BLEDevice::getScan();
+        pBLEScan->clearResults(); // Clear previous scan results
+        BLEScanResults foundDevices = pBLEScan->start(5, false);
+
+        Serial.print("Devices found: ");
+        Serial.println(foundDevices.getCount());
+        // Combine the text with the device count
+        String message = "Devices found: " + String(foundDevices.getCount());
+        // Print the combined message on the TFT display
+        printOnTFT(gfx, message.c_str());
+
+        Serial.println("Rescan done!");
+        printOnTFT(gfx, "Rescan done!");
+
+        if (!doConnect)
+        {
+            Serial.print("Device still not found: ");
+            printOnTFT(gfx, "Device still not found!");
+            Serial.println(deviceName);
+            delay(2000); // Wait for 2 seconds before re-scanning
+        }
+    }
+
+    // Attempt to connect if doConnect is true and not yet connected
+    if (doConnect && !connected)
+    {
+        if (connectToServer(*pServerAddress))
+        {
+            Serial.println("We are now connected to the BLE Server.");
+            printOnTFT(gfx, "Connected to the BLE Server");
+            populateDisplayWithStaticText();
+            // getting VFO frequency for th e1st time
+            uint8_t CIV_frequency[] = {0xFE, 0xFE, radio_address, 0xE0, 0x03, 0xFD};
+            pRXCharacteristic->writeValue(CIV_frequency, sizeof(CIV_frequency));
+            delay(80);
+            displayVFOfrequencyOnTFT(CurrentVFOFrequency);
+            GetTunedStatusFromSlave();
+            displayRESONANCEfrequencyOnTFT(theoreticalResonanceFrequency);
+            displayStepperInfo(currentStepperPosition, 0, true);
+        }
+        else
+        {
+            Serial.println("We have failed to connect to the server.");
+            printOnTFT(gfx, "Failed Connection to BLE Server");
+        }
+        doConnect = false; // Ensure we don’t attempt to reconnect immediately
+    }
+
+    // If connected, perform BLE communication
+    if (connected)
+    {
+        // Check if still connected
+        if (pTXCharacteristic == nullptr || !pTXCharacteristic->getRemoteService()->getClient()->isConnected())
+        {
+            Serial.println("Connection lost. Attempting to reconnect...");
+            gfx->fillScreen(BLACK); // Clear the screen with a black background
+            currentYonTFT = 15;
+            printOnTFT(gfx, "Bluetooth connection lost!");
+            printOnTFT(gfx, "Attempting to reconnect...");
+            reconnectFlag = true; // to force VFO frequency display for unchanged frequency
+            connected = false;
+            doConnect = true; // Reset flags to trigger rescan
+            delay(1000);      // Delay before retrying
+            return;
+        }
+
+        // Continue normal communication if still connected
+        // to get frequency
+        uint8_t CIV_frequency[] = {0xFE, 0xFE, radio_address, 0xE0, 0x03, 0xFD};
+        pRXCharacteristic->writeValue(CIV_frequency, sizeof(CIV_frequency));
+        delay(80);
+
+        // Send the CIV command to get the PTT status
+        uint8_t CIV_PTT_Status[] = {0xFE, 0xFE, radio_address, 0xE0, 0x1C, 0x00, 0xFD};
+        pRXCharacteristic->writeValue(CIV_PTT_Status, sizeof(CIV_PTT_Status));
+        delay(80);
+
+        getStepperPositionForCurrentVFOfrequency(CurrentVFOFrequency);
+checkIfWifiIsStillConnected();
+        displayWiFiStrengthOnTFT();
+    }
+}
+
+String formatStepperPosForConsoleOutput(uint32_t value)
+{
+    // Convert the number to a string
+    String result = String(value);
+
+    // Variable to hold the result with separators
+    String formattedResult = "";
+
+    // Length of the number string
+    int len = result.length();
+
+    // Insert thousands separators every three digits from the right
+    int insertPosition = len % 3;
+
+    for (int i = 0; i < len; i++)
+    {
+        // Append current digit to the result
+        formattedResult += result[i];
+
+        // Insert separator if we are not at the end of the string
+        if ((i - insertPosition + 1) % 3 == 0 && i != len - 1)
+        {
+            formattedResult += "."; // Separator
+        }
+    }
+
+    return formattedResult;
+}
+
+char *formatFrequencyForConsoleOutput(uint64_t vfo)
+{
+
+    static char vfo_str[20] = {""};
+    uint32_t MHz = (vfo / 1000000 % 1000000);
+    uint16_t Hz = (vfo % 1000);
+    uint16_t KHz = ((vfo % 1000000) - Hz) / 1000;
+    sprintf(vfo_str, "%lu.%03u.%03u", MHz, KHz, Hz);
+    return vfo_str;
+}
+
+// Function to display WiFi signal strength with bar, gradient, and text
+void displaySignalStrength(Arduino_GFX *gfx, int8_t rssi, int y)
+{
+    // Map the RSSI range (-90 to -30) to percentage (0 to 100)
+    int strengthPercentage = map(rssi, -90, -30, 0, 100);
+
+    // Constrain the percentage to make sure it doesn't exceed 100 or go below 0
+    strengthPercentage = constrain(strengthPercentage, 0, 100);
+
+    // Define bar dimensions
+    int barWidth = 200; // Width of the bar
+    int barHeight = 20; // Height of the bar
+    int x = 70;         // X position of the bar
+
+    // Function to calculate the gradient color based on RSSI value
+    auto colorGradient = [](int rssi, Arduino_GFX *gfx) -> uint16_t
+    {
+        if (rssi >= -67)
+        {
+            return gfx->color565(0, 255, 0); // Green
+        }
+        else if (rssi >= -70)
+        {
+            return gfx->color565(173, 255, 47); // Light Green
+        }
+        else if (rssi >= -80)
+        {
+            return gfx->color565(255, 255, 0); // Yellow
+        }
+        else if (rssi >= -90)
+        {
+            int red = map(rssi, -80, -90, 255, 255);
+            int green = map(rssi, -80, -90, 165, 0);
+            int blue = map(rssi, -80, -90, 0, 0);
+            return gfx->color565(red, green, blue); // Orange to Red Gradient
+        }
+        return gfx->color565(255, 0, 0); // Red for extremely low signals
+    };
+
+    // Fill the bar based on signal strength
+    int filledWidth = map(strengthPercentage, 0, 100, 0, barWidth);
+    uint16_t barColor = colorGradient(rssi, gfx);
+    gfx->fillRect(x + 1, y + 1, filledWidth - 2, barHeight - 2, barColor);
+
+    // Clear the area outside the filled bar (for dynamic updating)
+    gfx->fillRect(x + filledWidth, y + 1, barWidth - filledWidth - 2, barHeight - 2, BLACK);
+
+    // Clear the text area before updating the percentage (just enough to cover the previous text)
+    gfx->fillRect(x + barWidth + 10, y, 60, barHeight, BLACK);
+
+    // Display signal strength percentage as text
+    // Set cursor and display the current position
+    uint16_t color = gfx->color565(192, 192, 192); // Convert RGB to 16-bit color
+    gfx->drawRect(x, y, barWidth, barHeight, color);
+    gfx->setFont(&FreeMonoBold12pt7b);
+    // gfx->setTextColor(WHITE);
+    gfx->setTextColor(gfx->color565(192, 192, 192));
+
+    gfx->setCursor(10, y + 13);
+    gfx->print("Link");
+
+    gfx->setCursor(x + barWidth + 10, y + 13);
+    gfx->print(strengthPercentage);
+    gfx->print("%");
+}
+
+void getStepperPositionForCurrentVFOfrequency(uint32_t currentVFOfrequency)
+{
+
+    static uint64_t prev_freq = 0;
+
+    if (currentVFOfrequency != prev_freq && currentVFOfrequency != 0)
+
+    {
+
+        const int maxRetries = 5;    // Maximum number of retries
+        const int retryDelay = 1000; // Delay between retries in milliseconds
+        int attempts = 0;
+        bool success = false;
+
+        while (attempts < maxRetries && !success)
+        {
+
+            attempts++;
+            Serial.printf("\nAttempt %d: Sending command to Slave to get theoretical stepper position for vfo frequency\n", attempts);
+            String response = sendCommandToSlave("getStepperPositionForCurrentVFOfrequency", String(currentVFOfrequency));
+
+            if (response.length() > 0)
+            {
+                // Parse the response to extract stepper position and VFO_Frequency
+                int separatorIndex = response.indexOf(',');
+                if (separatorIndex != -1)
+                {
+                    String predictedStepperPositionStr = response.substring(0, separatorIndex);
+                    String currentStepperPositionStr = response.substring(separatorIndex + 1);
+                    currentStepperPosition = currentStepperPositionStr.toInt();
+                    predictedStepperPosition = predictedStepperPositionStr.toInt();
+                    deltaSteps = predictedStepperPosition - currentStepperPosition;
+                    Serial.print("Current Stepper Position (from Slave):   ");
+                    Serial.println(formatStepperPosForConsoleOutput(currentStepperPosition));
+                    Serial.print("Predicted Stepper Position (from Slave): ");
+                    Serial.println(formatStepperPosForConsoleOutput(predictedStepperPosition));
+                    Serial.print("Delta Steps:                            ");
+                    Serial.println(formatStepsToGoForConsole(deltaSteps));
+
+                    // Check if the frequency is within the defined ranges
+                    if ((currentVFOfrequency >= LOWER_40M && currentVFOfrequency <= UPPER_40M))
+                    {
+                        Serial.println("Frequency is within the 40m range.");
+                        displayStepperInfo(currentStepperPosition, deltaSteps, true);
+                        if (errorBanner == true)
+                        {
+                            clearERRORbannerOnTFT(220);
+                        }
+                    }
+                    else if ((currentVFOfrequency >= LOWER_20M && currentVFOfrequency <= UPPER_20M))
+                    {
+                        Serial.println("Frequency is within the 20m range.");
+                        if (errorBanner == true)
+                        {
+                            clearERRORbannerOnTFT(220);
+                        }
+
+                        displayStepperInfo(currentStepperPosition, deltaSteps, true);
+                    }
+                    else
+                    {
+                        Serial.println("Frequency is outside the defined ranges.");
+                        displayStepperInfo(currentStepperPosition, deltaSteps, false);
+                        displayERRORbannerOnTFT("OUT OF RANGE", 220);
+                    }
+
+                    success = true;
+                }
+
+                else
+                {
+                    Serial.println("Unexpected response format.");
+                }
+            }
+            else
+            {
+                Serial.println("Failed to get a response from Slave. Retrying...");
+                delay(retryDelay); // Wait before retrying
+            }
+        }
+
+        if (!success)
+        {
+            Serial.println("Failed to get theoretical stepper position for vfo frequency from Slave after multiple attempts.");
+            // displayErrorOnLCD("getStepperPositionForCurrentVFOfrequency()");
+        }
+
+        prev_freq = currentVFOfrequency;
+    }
+}
+
+String formatStepsToGoForConsole(int32_t value)
+{
+    char buffer[11]; // Buffer to hold the formatted string, including null terminator
+    String result = "";
+
+    // Add the sign
+    if (value < 0)
+    {
+        result = "-" + String(abs(value));
+    }
+    else
+    {
+        result = "+" + String(value);
+    }
+
+    int len = result.length();
+    int insertPosition = len - 3;
+
+    while (insertPosition > 1)
+    { // Start from position 1 to leave the sign in front
+        result = result.substring(0, insertPosition) + "'" + result.substring(insertPosition);
+        insertPosition -= 3;
+    }
+
+    // Add padding spaces to make it 8 characters long
+    snprintf(buffer, sizeof(buffer), "%8s", result.c_str());
+
+    return String(buffer);
+}
+
+void displayWiFiStrengthOnTFT()
+{
+    if ((CurrentVFOFrequency >= LOWER_40M && CurrentVFOFrequency <= UPPER_40M) ||
+        (CurrentVFOFrequency >= LOWER_20M && CurrentVFOFrequency <= UPPER_20M))
+    {
+        int8_t rssi = WiFi.RSSI(); // Get WiFi RSSI (signal strength)
+        displaySignalStrength(gfx, rssi, 210);
+    }
+}
+
+void checkIfWifiIsStillConnected()
+{
+
+   if (WiFi.status() != WL_CONNECTED) {
+            Serial.println("\nWiFi Connection lost");
+             currentYonTFT = 15; // Start at the top of the display
+    gfx->fillScreen(BLACK); // Clear the screen
+
+        printOnTFT(gfx, "WiFi Connection lost");
+        printOnTFT(gfx, "Please check your Slave");
+
+        establish_WIFI_connection_with_Slave();
+    }
+   
+  
+}
+

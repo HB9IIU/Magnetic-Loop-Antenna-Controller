@@ -1,0 +1,171 @@
+#include <TFT_eSPI.h>  // Include the TFT library (make sure you have it installed)
+
+TFT_eSPI tft = TFT_eSPI();  // Create TFT instance
+
+// Define the string to display
+const char* testString = "HB9IIU MLA CONTROLLER";
+
+// Function to display the test string with the specified font
+void displayWithFont(int font) {
+    tft.setTextFont(font);        // Set the font
+    tft.fillScreen(TFT_BLACK);    // Clear the screen with black color
+    tft.setTextColor(TFT_WHITE);  // Set text color to white
+    tft.setTextSize(1);           // Set text size to 1
+    tft.setCursor(10, 50);        // Set cursor position
+    tft.println(testString);       // Print the string
+    delay(2000);                   // Wait for 2 seconds before next font
+}
+
+void setup() {
+    tft.init();                    // Initialize the TFT display
+    tft.setRotation(1);            // Set the display rotation
+    tft.fillScreen(TFT_BLACK);     // Clear the screen with black color
+
+
+}
+
+void loop() {
+    
+   // Test each font in sequence
+    displayWithFont(2);   // Load Font 2
+    displayWithFont(4);   // Load Font 4
+    displayWithFont(7);   // Load Font 7
+
+
+
+}
+
+
+
+
+void displayWelcomeScreen(int duration, const char *version, const char *date)
+{
+    // Initialize the TFT display
+    //tft.begin();
+    //tft.setRotation(1);        // Set the rotation if needed
+    //tft.fillScreen(TFT_BLACK); // Clear the screen
+
+    // Center coordinates
+    int centerX = tft.width() / 2;  // X coordinate of the center
+    int centerY = tft.height() / 2; // Y coordinate of the center
+
+    // Circle parameters
+    const int INITIAL_RADIUS = 10;
+    const int GAP = 25;
+    const int MAX_RADIUS = centerX; // Max radius based on screen width
+    const int CIRCLE_THICKNESS = 5; // Thickness of the circle
+
+    // Text Y positions
+    const int TEXT_Y_WELCOME = 80;
+    const int TEXT_Y_CONTROLLER = 140;
+    const int TEXT_Y_VERSION = 200;
+
+    // Erase color
+    uint16_t eraseColor = TFT_BLACK;
+
+    // Calculate the number of circles
+    int numCircles = (MAX_RADIUS - INITIAL_RADIUS) / GAP + 1;
+    int diameters[numCircles];
+
+    // Populate the diameter array
+    for (int i = 0; i < numCircles; i++)
+    {
+        diameters[i] = INITIAL_RADIUS + i * GAP;
+    }
+
+    // Draw the splash screen text
+    tft.setFreeFont(&FreeMonoBold18pt7b);
+    int xWelcome = (tft.width() - tft.textWidth("Welcome To")) / 2;
+    tft.setCursor(xWelcome, TEXT_Y_WELCOME);
+    tft.print("Welcome To");
+
+    int xController = (tft.width() - tft.textWidth("HB9IIU MLA CONTROLLER")) / 2;
+    tft.setCursor(xController, TEXT_Y_CONTROLLER);
+    tft.print("HB9IIU MLA CONTROLLER");
+
+    // Format the version string
+    char versionText[50];
+    snprintf(versionText, sizeof(versionText), "Version %s", version);
+
+    // Format the date string
+    char versionDate[50];
+    snprintf(versionDate, sizeof(versionDate), "%s", date);
+
+    // Set font for the version number and date
+    tft.setFreeFont(&FreeMonoBold12pt7b);
+    int xVersion = (tft.width() - tft.textWidth(versionText)) / 2;
+    int xDate = (tft.width() - tft.textWidth(versionDate)) / 2;
+
+    // Draw version and date text
+    tft.setCursor(xVersion, TEXT_Y_VERSION);
+    tft.print(versionText);
+    tft.setCursor(xDate, TEXT_Y_VERSION + 50);
+    tft.print(versionDate);
+
+    // Initialize random seed
+    randomSeed(analogRead(0)); // Use an analog pin to seed random for better randomness
+
+    // Display concentric circles with animation
+    for (int j = 0; j < 3; j++)
+    {
+        // Draw concentric circles with random colors
+        for (int i = 0; i < numCircles; i++)
+        {
+            // Generate a random color
+            uint16_t randomColor = tft.color565(random(0, 256), random(0, 256), random(0, 256));
+
+            // Draw multiple concentric circles to create thickness
+            for (int thickness = 0; thickness < CIRCLE_THICKNESS; thickness++)
+            {
+                tft.drawCircle(centerX, centerY, diameters[i] + thickness, randomColor);
+            }
+            // Redraw the splash screen text
+            tft.setFreeFont(&FreeMonoBold18pt7b);
+            tft.setCursor(xWelcome, TEXT_Y_WELCOME);
+            tft.print("Welcome To");
+            tft.setCursor(xController, TEXT_Y_CONTROLLER);
+            tft.print("HB9IIU MLA CONTROLLER");
+            tft.setFreeFont(&FreeMonoBold12pt7b);
+            tft.setCursor(xVersion, TEXT_Y_VERSION);
+            tft.print(versionText);
+            tft.setCursor(xDate, TEXT_Y_VERSION + 50);
+            tft.print(versionDate);
+        }
+
+        // Erase circles by drawing them in the erase color
+        for (int i = 0; i < numCircles; i++)
+        {
+            for (int thickness = 0; thickness < CIRCLE_THICKNESS; thickness++)
+            {
+                tft.drawCircle(centerX, centerY, diameters[i] + thickness, eraseColor);
+            }
+            // Redraw the splash screen text
+            tft.setFreeFont(&FreeMonoBold18pt7b);
+            tft.setCursor(xWelcome, TEXT_Y_WELCOME);
+            tft.print("Welcome To");
+            tft.setCursor(xController, TEXT_Y_CONTROLLER);
+            tft.print("HB9IIU MLA CONTROLLER");
+            tft.setFreeFont(&FreeMonoBold12pt7b);
+            tft.setCursor(xVersion, TEXT_Y_VERSION);
+            tft.print(versionText);
+            tft.setCursor(xDate, TEXT_Y_VERSION + 50);
+            tft.print(versionDate);
+        }
+    }
+    // Redraw the splash screen text
+    tft.setFreeFont(&FreeMonoBold18pt7b);
+    tft.setCursor(xWelcome, TEXT_Y_WELCOME);
+    tft.print("Welcome To");
+    tft.setCursor(xController, TEXT_Y_CONTROLLER);
+    tft.print("HB9IIU MLA CONTROLLER");
+    tft.setFreeFont(&FreeMonoBold12pt7b);
+    tft.setCursor(xVersion, TEXT_Y_VERSION);
+    tft.print(versionText);
+    tft.setCursor(xDate, TEXT_Y_VERSION + 50);
+    tft.print(versionDate);
+
+    // Delay before clearing the screen
+    delay(1500);
+    tft.fillScreen(TFT_BLACK); // Clear the screen
+}
+
