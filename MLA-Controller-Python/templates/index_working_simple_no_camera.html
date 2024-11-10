@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html class="h-100" lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta content="width=device-width, initial-scale=1" name="viewport">
+        <title>Stepper Motor Control Panel</title>
+        <!-- Bootstrap core CSS -->
+        <link crossorigin="anonymous" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" rel="stylesheet">
+        <!-- Include Highcharts library -->
+        <script src="https://code.highcharts.com/highcharts.js"></script>
+        <!-- Include jQuery library -->
+        <script crossorigin="anonymous" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+        <!-- Include Font Awesome for Icons -->
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+        <!-- Include Popper.js and Bootstrap JS -->
+        <script crossorigin="anonymous" integrity="sha384-IQsoLXl5PILFhosVNubq5LC7Qb9DXgDA9i+tQ8Zj3iwWAwPtgFTxbJ8NT4GN1R8p" src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+        <script crossorigin="anonymous" integrity="sha384-cVKIPhGWiC2Al4u+LWgxfKTRIcfu0JTxR+EQDz/bgldoEyl4H0zUF0QKbrJ0EcQF" src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.min.js"></script>
+        <style>/* Sticky Footer Styles */html, body { height: 100%; } body { display: flex; flex-direction: column; } main { flex: 1 0 auto; } footer { flex-shrink: 0; } /* Additional Styles */main > .container { padding: 60px 15px 0; } .w-100 { height: 400px; } #S11ChartContainer, #S11ZoomChartContainer { width: 100%; height: 100%; } .control-panel { text-align: center; margin-top: 12px; } .step-buttons-container { display: flex; flex-direction: column; align-items: center; margin-top: 10px; } .step-buttons { display: flex; justify-content: center; gap: 10px; margin-top: 10px; } .btn-group .btn { margin: 5px; } .btn-secondary.active { background-color: #007bff; color: white; } .input-field-small { width: 60%; margin: 0 auto; } .simple-toast { display: none;  /* Ensure all toasts are hidden by default */ position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 10px; background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; border-radius: 5px; z-index: 9999; width: auto; text-align: center; } .toast-center { display: flex; flex-direction: column; justify-content: center; align-items: center; } .simple-toast.show { display: block;  /* Show the toast when triggered */ } .table-container { display: flex; justify-content: center; align-items: center; height: 100%; } table { width: auto; border: none; } table td { background-color: white; padding: 5px; border: none; }</style>
+    </head>
+    <body class="d-flex flex-column h-100">
+        <header>
+            <nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
+                <div class="container-fluid"><a class="navbar-brand" href="#">HB9IIU MLA+</a>
+                    <button aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" class="navbar-toggler" data-bs-target="#navbarCollapse" data-bs-toggle="collapse" type="button">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                    <div class="collapse navbar-collapse" id="navbarCollapse">
+                        <ul class="navbar-nav me-auto mb-2 mb-md-0">
+                            <li class="nav-item active"><a aria-current="page" class="nav-link" href="characteristics.html">Characteristics</a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </nav>
+        </header>
+        <main class="flex-shrink-0">
+            <div class="container">
+                <div class="col-12 w-100">
+                    <div id="S11ChartContainer"></div>
+                    <div class="row" style="padding-bottom: 10px;">
+                        <div class="col-md-6">
+                            <div class="row">
+                                <div class="col-md-6 control-panel">
+                                    <h5>Stepper Position</h5>
+                                    <h5 class="bg-white" id="stepperPositionDisplay">???'???</h5>
+                                    <table>
+                                        <tbody>
+                                            <tr>
+                                                <td style="text-align: left; padding-left: 20px;">
+                                                    <button class="btn btn-secondary" id="moveStepperPosition" type="button">Mov</button>
+                                                </td>
+                                                <td>
+                                                    <input class="form-control" id="stepperPosForFlash" maxlength="9" placeholder="Steps" style="text-align: center;" type="number">
+                                                </td>
+                                                <td style="text-align: right; padding-right: 20px;">
+                                                    <button class="btn btn-secondary" id="submitStepperPosition" type="button">Set</button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                    <!-- Close table properly -->
+                                    <table style="width: 100%;">
+                                        <tbody>
+                                            <tr>
+                                                <td style="text-align: center;"></td>
+                                            </tr>
+                                            <tr>
+                                                <td>
+                                                    <button class="btn btn-secondary" id="runCalibration40mButton" style="height: 40px; margin: 0 10px;" type="button">40 m</button>
+                                                </td>
+                                                <td>
+                                                    <button class="btn btn-secondary" id="runCalibrationFullButton" style="height: 40px; margin: 0 10px;" type="button">Full</button>
+                                                </td>
+                                                <td>
+                                                    <button class="btn btn-secondary" id="runCalibration20mButton" style="height: 40px; margin: 0 10px;" type="button">20 m</button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="col-md-6 control-panel">
+                                    <h5 style="margin-bottom: 12px;">Stepper Motor Control</h5>
+                                    <div aria-label="Motor Controls" class="btn-group" role="group">
+                                        <button class="btn btn-secondary" id="moveBackward" type="button"><i class="fas fa-arrow-left"></i> Backward
+                                        </button>
+                                        <button class="btn btn-secondary" id="moveForward" type="button">Forward <i class="fas fa-arrow-right"></i>
+                                        </button>
+                                    </div>
+                                    <div class="step-buttons-container">
+                                        <h6 style="margin-bottom: -8px;">Steps to Go</h6>
+                                        <div class="step-buttons btn-group" role="group">
+                                            <button class="btn btn-secondary" data-step="1000" id="button1000Steps" type="button">1'000
+</button>
+                                            <button class="btn btn-secondary" data-step="5000" id="button5000Steps" type="button">
+                                                5'000
+</button>
+                                            <button class="btn btn-secondary" data-step="10000" id="button10000Steps" type="button">
+                                                10'000
+</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 control-panel">
+                                    <h5>40m Band Test</h5>
+                                    <div class="table-container" style="margin-top: -10px;">
+                                        <table>
+                                            <tbody>
+                                                <tr>
+                                                    <td>
+                                                        <button class="btn btn-secondary" onclick="sendFrequency('7.00')" type="button">
+                                                            7.00
+</button>
+                                                    </td>
+                                                    <td>
+                                                        <button class="btn btn-secondary" onclick="sendFrequency('7.05')" type="button">
+                                                            7.05
+</button>
+                                                    </td>
+                                                    <td>
+                                                        <button class="btn btn-secondary" onclick="sendFrequency('7.10')" type="button">
+                                                            7.10
+</button>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>
+                                                        <button class="btn btn-secondary" onclick="sendFrequency('7.15')" type="button">
+                                                            7.15
+</button>
+                                                    </td>
+                                                    <td>
+                                                        <button class="btn btn-secondary" onclick="sendFrequency('7.20')" type="button">
+                                                            7.20
+</button>
+                                                    </td>
+                                                    <td>
+                                                        <button class="btn btn-secondary" onclick="sendFrequency('7.25')" type="button">
+                                                            7.25
+</button>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 control-panel">
+                                    <h5>20m Band Test</h5>
+                                    <div class="table-container" style="margin-top: -10px;">
+                                        <table>
+                                            <tbody>
+                                                <tr>
+                                                    <td>
+                                                        <button class="btn btn-secondary" onclick="sendFrequency('14.00')" type="button">14.00
+</button>
+                                                    </td>
+                                                    <td>
+                                                        <button class="btn btn-secondary" onclick="sendFrequency('14.05')" type="button">14.05
+</button>
+                                                    </td>
+                                                    <td>
+                                                        <button class="btn btn-secondary" onclick="sendFrequency('14.10')" type="button">14.10
+</button>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>
+                                                        <button class="btn btn-secondary" onclick="sendFrequency('14.15')" type="button">14.15
+</button>
+                                                    </td>
+                                                    <td>
+                                                        <button class="btn btn-secondary" onclick="sendFrequency('14.20')" type="button">14.20
+</button>
+                                                    </td>
+                                                    <td>
+                                                        <button class="btn btn-secondary" onclick="sendFrequency('14.25')" type="button">14.25
+</button>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="container">
+                                <h5 class="text-center" style="margin-top: 13px;">S11 and SWR Characteristics Around
+                            Resonance</h5>
+                                <div id="S11ZoomChartContainer" style="margin-top: -10px;"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-12" style="text-align: center;">
+                            <div id="characterisation_plot_full" style="width:100%; height:400px;"></div>
+                            <div id="characterisation_plot_40m" style="width:100%; height:400px;"></div>
+                            <button class="btn btn-light" id="ButtonSave40mToSlave" type="button">Save New Lookup Table to ESP32 Controller</button>
+                            <div id="characterisation_plot_20m" style="width:100%; height:400px;"></div>
+                            <button class="btn btn-light" id="ButtonSave20mToSlave" type="button">Save New Lookup Table to ESP32 Controller</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+        <!-- Toast Notifications -->
+        <div class="simple-toast toast-center" id="fullPathCharacterisationToast" role="alert">Full Path Automatic Characterization Started!</div>
+        <div class="simple-toast toast-center" id="goToNewPositionToast" role="alert">Stepper moving to specified new position
+</div>
+        <div class="simple-toast toast-center" id="setNewPosinFlashConfirmation" role="alert">Stepper position successfully
+            updated!
+</div>
+        <div class="simple-toast toast-center" id="calibrationToast" role="alert">Automatic Characterization Started!</div>
+        <div class="simple-toast toast-center" id="moveStepperToast" role="alert">Stepper moved by specified steps.</div>
+        <div class="simple-toast toast-center" id="testFrequencyToast" role="alert"></div>
+        <div class="simple-toast toast-center" id="CompletionToast" role="alert">Operation Completed!</div>
+        <div class="simple-toast toast-center" id="saveAndUploadTablestoESP32" role="alert">Uploading Lookup Table to ESP32</div>
+        <!-- JavaScript code to initialize and handle charts and buttons -->
+        <script type="text/javascript">
+    var chart;
+    var zoomChart;
+    var ajaxInterval;
+    var bandRangeStart = 6.5;
+    var bandRangeStop = 15;
+
+
+    function formatNumberWithSeparator(value) {
+        return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'");
+    }
+
+    // Function to send frequency value to Python and show toast
+    function sendFrequency(frequency) {
+        $.post('/manual_test_frequency', {frequency: frequency}, function (response) {
+            $('#testFrequencyToast').text('Frequency ' + frequency + ' MHz sent for testing!').fadeIn().delay(2000).fadeOut(); // Show toast
+        }).fail(function () {
+            console.error("Error sending frequency to /manual_test_frequency endpoint");
+        });
+    }
+
+    let intervalId = setInterval(getCompletionMessageStatus, 1000);  // Store the interval ID
+
+    function getCompletionMessageStatus() {
+        fetch('/getCompletionMessageStatus', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Completion message:', data.completion_message);
+                if (data.completion_message !== "") {
+                    $('#CompletionToast').text(data.completion_message).fadeIn().delay(3000).fadeOut(); // Show toast with delay
+
+                    // Pause the interval for 3 seconds
+                    clearInterval(intervalId);
+                    setTimeout(() => {
+                        intervalId = setInterval(getCompletionMessageStatus, 1000); // Restart the interval after 3 seconds
+                    }, 3000);  // Delay for 3 seconds
+                }
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+    }
+
+    function createOrUpdateChart(data) {
+        var plotLines = [];
+
+        // Add plot line for minimum frequency if available
+        if (data.min_frequency !== null) {
+            plotLines.push({
+                color: '#FF0000', // Red in hex
+                dashStyle: 'shortdot',
+                width: 2,
+                value: data.min_frequency / 1e6,
+                label: {
+                    useHTML: true,  // Enable HTML rendering
+                    text: `<div style="text-align: center; background-color: #ffffff; padding: 5px; border-radius: 5px;">
+                    ${formatNumberWithSeparator(data.min_frequency)} Hz<br>(${Math.round(data.min_s11_db)} dB)
+                   </div>`,
+                    align: 'center',
+                    verticalAlign: 'bottom',
+                    rotation: 0,
+                    y: 60,
+                    style: {
+                        color: '#000000',
+                        fontSize: '16px',
+                        fontWeight: 'normal'
+                    }
+                },
+                zIndex: 4
+            });
+        }
+
+        // Calculate dynamic minimum y-axis value
+        var minY = Math.min(-1, Math.floor(Math.min(...data.s11) - 1));
+
+        // If chart exists, update it, otherwise create a new one
+        if (chart) {
+            chart.series[0].setData(data.s11.map((s, index) => [data.frequency[index] / 1e6, s]), true, false, false);
+
+            chart.xAxis[0].update({
+                plotLines: plotLines,
+                labels: {
+                    formatter: function () {
+                        return this.value.toFixed(2);
+                    }
+                }
+            }, false);
+
+            chart.yAxis[0].update({
+                min: minY
+            }, false);
+
+            chart.redraw();
+        } else {
+            chart = Highcharts.chart('S11ChartContainer', {
+                chart: {
+                    type: 'line',
+                    animation: true,
+                    marginBottom: 90,
+                    plotBackgroundColor: '#eaeaea',
+                },
+                title: {
+                    text: 'S11 Reflection Coefficient Plot'
+                },
+                xAxis: {
+                    title: {
+                        text: 'Frequency (MHz)'
+                    },
+                    min: bandRangeStart,
+                    max: bandRangeStop,
+                    tickInterval: 0.05,
+                    gridLineWidth: 1,
+                    gridLineColor: '#ffffff',
+                    plotLines: plotLines,
+                    labels: {
+                        formatter: function () {
+                            return this.value.toFixed(2);
+                        }
+                    }
+                },
+                yAxis: {
+                    title: {
+                        text: 'S11 (dB)'
+                    },
+                    min: minY,
+                    max: 0,
+                    gridLineWidth: 0,
+                    gridLineColor: '#acabab'
+                },
+                legend: {
+                    enabled: false
+                },
+                tooltip: {
+                    useHTML: true,
+                    formatter: function () {
+                        return `<span style="font-size: 14px;">${this.x.toFixed(6)} MHz</span><br/>` +
+                            `<span style="font-size: 14px;">S11 (dB): ${this.y.toFixed(1)}</span>`;
+                    }
+                },
+                series: [{
+                    name: 'S11 (dB)',
+                    showInLegend: false,
+                    data: data.s11.map((s, index) => [data.frequency[index] / 1e6, s]),
+                    color: '#000000',
+                    lineWidth: 1
+                }],
+                credits: {
+                    enabled: false
+                }
+            });
+        }
+    }
+
+    function createOrUpdateZoomChart(data) {
+        // Calculate dynamic minimum y-axis value based only on the S11 data
+        var minY = Math.min(-1, Math.floor(Math.min.apply(null, data.s11) - 1));
+
+        // Add plot line for minimum frequency in zoomed chart
+        var plotLines = [];
+
+
+        if (data.min_frequency !== null) {
+            plotLines.push({
+                color: '#2a9d59', // Green in hex
+                dashStyle: 'shortdot',
+                width: 2,
+                value: data.min_frequency / 1e6,  // Use the correct frequency directly
+                label: {
+                    useHTML: true,  // Enable HTML rendering
+                    text: `<div style="text-align: center; background-color: #eaeaea; padding: 5px; border-radius: 5px;">
+                    ${formatNumberWithSeparator(data.min_frequency)} Hz<br>(${data.min_swr.toFixed(1)} SWR)
+                    </div>`,
+                    align: 'center',
+                    verticalAlign: 'top',
+                    rotation: 0,
+                    y: 14,
+                    style: {
+                        color: '#000000',
+                        fontSize: '16px',
+                        fontWeight: 'normal'
+                    }
+                },
+                zIndex: 4
+            });
+        }
+
+        // Add plot line for SWR = 3 without a label
+        plotLines.push({
+            color: '#ea1616', // Red in hex
+            dashStyle: 'LongDashDot',
+            width: 2,
+            value: 3,  // SWR value to plot
+            zIndex: 4,
+            axis: 1 // Apply this plot line to the secondary y-axis (SWR axis)
+        });
+
+        if (zoomChart) {
+            zoomChart.series[0].setData(data.s11.map(function (s, index) {
+                return [data.frequency[index] / 1e6, s];
+            }), true, false, false);
+
+            zoomChart.series[1].setData(data.swr.map(function (swr, index) {
+                return [data.frequency[index] / 1e6, swr];
+            }), true, false, false);
+
+            zoomChart.xAxis[0].update({
+                plotLines: plotLines
+            }, false);
+
+            zoomChart.yAxis[0].update({
+                min: minY
+            }, false);
+
+            zoomChart.yAxis[1].update({
+                plotLines: plotLines
+            }, false);
+
+            zoomChart.redraw();
+        } else {
+            zoomChart = Highcharts.chart('S11ZoomChartContainer', {
+                chart: {
+                    type: 'line',
+                    animation: true,
+                    marginBottom: 110,
+                    plotBackgroundColor: '#eaeaea',
+                },
+                title: {
+                    text: null  // Setting the title text to null removes the chart title
+                },
+                xAxis: {
+                    title: {
+                        text: 'Frequency (MHz)'
+                    },
+                    tickInterval: 0.01,
+                    gridLineWidth: 1,
+                    gridLineColor: '#CCCCCC',  // Light gray gridline
+                    plotLines: plotLines,
+                    labels: {
+                        formatter: function () {
+                            return this.value.toFixed(2);
+                        }
+                    }
+                },
+                yAxis: [{ // Primary y-axis for S11
+                    title: {
+                        text: 'S11 (dB)'
+                    },
+                    min: minY,
+                    max: 0,
+                    gridLineColor: '#CCCCCC',
+                    gridLineWidth: 1
+                }, { // Secondary y-axis for SWR
+                    title: {
+                        text: 'SWR'
+                    },
+                    opposite: true,  // Position the y-axis on the right
+                    min: 1,  // Minimum value for SWR axis
+                    startOnTick: false,
+                    endOnTick: false,
+                    gridLineColor: '#CCCCCC',
+                    gridLineWidth: 1,
+                    labels: {
+                        formatter: function () {
+                            return this.value.toFixed(1);
+                        }
+                    },
+                    plotLines: plotLines // Add plot lines here
+                }],
+                legend: {
+                    enabled: true,
+                    y: -20
+                },
+                tooltip: {
+                    useHTML: true,
+                    formatter: function () {
+                        return `<span style="font-size: 14px;">${this.x.toFixed(6)} MHz</span><br/>` +
+                            `<span style="font-size: 14px;">${this.series.name}: ${this.y.toFixed(1)}</span>`;
+                    }
+                },
+                series: [{
+                    name: 'S11 (dB)',
+                    showInLegend: true,
+                    color: '#ea1616',
+                    lineWidth: 1,
+                    data: data.s11.map(function (s, index) {
+                        return [data.frequency[index] / 1e6, s];
+                    })
+                }, {
+                    name: 'SWR',
+                    yAxis: 1,  // Use the secondary y-axis
+                    showInLegend: true,
+                    color: '#2a9d59',
+                    lineWidth: 1,
+                    data: data.swr.map(function (swr, index) {
+                        return [data.frequency[index] / 1e6, swr];
+                    })
+                }],
+                credits: {
+                    enabled: false
+                }
+            });
+        }
+    }
+
+    function fetchZoomDataAndUpdateChart() {
+        $.getJSON('/zoom_data', function (data) {
+            createOrUpdateZoomChart({
+                frequency: data.ns_frequency_array,
+                s11: data.ns_s11_db_array,
+                swr: data.ns_swr_array,
+                min_s11_db: data.ns_min_s11_db,
+                min_swr: data.ns_min_swr,
+                min_frequency: data.ns_freq_at_min_s11,
+            });
+        }).fail(function () {
+            console.error("Error fetching data from /zoom_data endpoint");
+            setTimeout(fetchZoomDataAndUpdateChart, 800);  // Retry after 800 ms
+        });
+    }
+
+    function fetchDataAndUpdateChart() {
+        $.getJSON('/wide_sweep_data', function (data) {
+            createOrUpdateChart({
+                frequency: data.ws_frequency_array,
+                s11: data.ws_s11_db_array,
+                min_s11_db: data.ws_min_s11_db,
+                min_frequency: data.ws_freq_at_min_s11,
+            });
+        }).fail(function () {
+            console.error("Error fetching wide sweep data from /wide_sweep_data endpoint");
+            setTimeout(fetchDataAndUpdateChart, 800);  // Retry after 800 ms
+        });
+    }
+
+    function fetchCurrentStepperPosition() {
+        $.get('/returnCurrentStepperPosition', function (data) {
+            var formattedPosition = formatNumberWithSeparator(data);
+            $('#stepperPositionDisplay').text(formattedPosition);
+        }).fail(function () {
+            console.error("Error fetching current stepper position from /returnCurrentStepperPosition endpoint");
+            $('#stepperPositionDisplay').text("Error");
+            setTimeout(fetchCurrentStepperPosition, 1000);  // Retry after 1 second
+        });
+    }
+
+    function moveStepperPosition() {
+        var targetPosition = $('#stepperPosForFlash').val();
+        $.post('/moveSteppertoNewPosition', {position: targetPosition}, function (data) {
+            console.log("Position submitted successfully:", data);
+            $('#goToNewPositionToast').text("Move duration: " + data.move_duration + " ms").fadeIn().delay(800).fadeOut(); // Show toast with move duration
+            disableUIElements(data.move_duration);
+
+        }).fail(function () {
+            console.error("Error submitting new stepper position to /moveSteppertoNewPosition endpoint");
+            $('#goToNewPositionToast').text("Error moving stepper!").fadeIn().delay(800).fadeOut(); // Show error message in toast
+        });
+    }
+
+    function submitStepperPosition() {
+        var newPosition = $('#stepperPosForFlash').val();
+        $.post('/setNewStepperPositionInSlave', {position: newPosition}, function (data) {
+            console.log("Position submitted successfully:", data);
+            $('#setNewPosinFlashConfirmation').fadeIn().delay(800).fadeOut(); // Show toast
+        }).fail(function () {
+            console.error("Error submitting new stepper position to /setNewStepperPositionInSlave endpoint");
+        });
+    }
+
+    function disableUIForCharacterization() {
+        $('#moveForward, #moveBackward,#moveStepperPosition, #submitStepperPosition, #runCalibration40mButton, #button1000Steps,#button5000Steps,#button10000Steps').prop('disabled', true);
+        charInterval = setTimeout(checkCharacterizationStatus, 2000);  // Use setTimeout instead of setInterval
+    }
+
+    function checkCharacterizationStatus() {
+        $.get('/checkCharacterisationStatus', function (data) {
+            if (!data.characterisationRoutineRunning) {
+                $('#moveForward, #moveBackward,#moveStepperPosition, #submitStepperPosition, #runCalibration40mButton, #button1000Steps,#button5000Steps,#button10000Steps').prop('disabled', false);
+            } else {
+                setTimeout(checkCharacterizationStatus, 2000);  // Check again after 2 seconds
+            }
+        }).fail(function () {
+            console.error("Error checking characterisation status");
+        });
+    }
+
+    function start40mAutoCharacterisation() {
+        $.post('/start40mAutoCharaterisationRoutine', function () {
+            console.log("Automatic Characterization Started");
+            $('#calibrationToast').fadeIn().delay(800).fadeOut(); // Show toast
+            disableUIForCharacterization();  // Disable the UI and start checking
+        }).fail(function () {
+            console.error("Error starting auto characterization routine");
+        });
+    }
+
+    function start20mAutoCharacterisation() {
+        $.post('/start20mAutoCharaterisationRoutine', function () {
+            console.log("Automatic Characterization Started");
+            $('#calibrationToast').fadeIn().delay(800).fadeOut(); // Show toast
+            disableUIForCharacterization();  // Disable the UI and start checking
+        }).fail(function () {
+            console.error("Error starting auto characterization routine");
+        });
+    }
+
+    function startFullPathAutoCharacterisation() {
+        $.post('/startFullPathAutoCharacterisation', function () {
+            $('#fullPathCharacterisationToast').fadeIn().delay(4000).fadeOut(); // Show toast
+            disableUIForCharacterization();  // Disable the UI and start checking
+        }).fail(function () {
+            console.error("Error starting auto characterization routine");
+        });
+    }
+
+    function updateOrCreate20mCharacterisationPlot() {
+        $.ajax({
+            url: '/get_20m_Characterisation_Data',
+            method: 'GET',
+            success: function (data) {
+                if (data.characterisation_table.length > 0) {
+                    $('#characterisation_plot_20m').show();
+                    $('#ButtonSave20mToSlave').show();  // Show the button when there is data
+
+                    if (window.characterisationChart20m) {
+                        window.characterisationChart20m.series[0].setData(data.characterisation_table.map(function (point) {
+                            return [point[1], point[0]];
+                        }), true);
+                        window.characterisationChart20m.series[1].setData(data.characterisation_table_poly.map(function (point) {
+                            return [point[1], point[0]];
+                        }), true);
+                        window.characterisationChart20m.redraw();  // Ensure the chart is redrawn
+                    } else {
+                        // Destroy the chart if it exists before reinitializing
+                        if (window.characterisationChart20m) {
+                            window.characterisationChart20m.destroy();
+                        }
+                        window.characterisationChart20m = Highcharts.chart('characterisation_plot_20m', {
+                            chart: {
+                                type: 'scatter'
+                            },
+                            title: {
+                                text:  data.plotTitle
+                            },
+                            xAxis: {
+                                title: {
+                                    text: 'Resonance Frequency (MHz)'
+                                },
+                                labels: {
+                                    formatter: function () {
+                                        return (this.value / 1e6).toFixed(3);
+                                    }
+                                }
+                            },
+                            yAxis: {
+                                title: {
+                                    text: 'Stepper Position'
+                                },
+                                labels: {
+                                    formatter: function () {
+                                        return this.value.toLocaleString('en').replace(/,/g, "'");
+                                    }
+                                }
+                            },
+                            series: [{
+                                name: 'Measured Data',
+                                data: data.characterisation_table,
+                                type: 'scatter',
+                                marker: {
+                                    symbol: 'circle',
+                                    radius: 6,
+                                    fillColor: 'transparent',
+                                    lineColor: data.samplePointColor,
+                                    lineWidth: 2
+                                }
+                            }, {
+                                name: 'Polynomial Fit',
+                                data: data.characterisation_table_poly,
+                                type: 'line',
+                                color: '#1525da',
+                                lineWidth: 2,
+                                marker: {
+                                    enabled: false
+                                }
+                            }],
+                            credits: {
+                                enabled: false
+                            }
+                        });
+                    }
+                } else {
+                    $('#characterisation_plot_20m').hide();
+                    $('#ButtonSave20mToSlave').hide();  // Show the button when there is data
+
+                }
+            },
+            error: function () {
+                console.log("Error")
+            }
+        });
+    }
+
+    function updateOrCreate40mCharacterisationPlot() {
+        $.ajax({
+            url: '/get_40m_Characterisation_Data',
+            method: 'GET',
+            success: function (data) {
+                if (data.characterisation_table.length > 0) {
+                    console.log(data.plotTitle);
+                    $('#characterisation_plot_40m').show();
+                    $('#ButtonSave40mToSlave').show();  // Show the button when there is data
+
+                    if (window.characterisationChart40m) {
+                        window.characterisationChart40m.setTitle({text: data.plotTitle});
+                        window.characterisationChart40m.series[0].setData(data.characterisation_table.map(function (point) {
+                            return [point[1], point[0]];
+                        }), true);
+                        window.characterisationChart40m.series[1].setData(data.characterisation_table_poly.map(function (point) {
+                            return [point[1], point[0]];
+                        }), true);
+                        window.characterisationChart40m.redraw();  // Ensure the chart is redrawn
+                    } else {
+                        // Destroy the chart if it exists before reinitializing
+                        if (window.characterisationChart40m) {
+                            window.characterisationChart40m.destroy();
+                        }
+                        window.characterisationChart40m = Highcharts.chart('characterisation_plot_40m', {
+                            chart: {
+                                type: 'scatter'
+                            },
+                            title: {
+                                text: data.plotTitle
+                            },
+                            xAxis: {
+                                title: {
+                                    text: 'Resonance Frequency (MHz)'
+                                },
+                                labels: {
+                                    formatter: function () {
+                                        return (this.value / 1e6).toFixed(3);
+                                    }
+                                }
+                            },
+                            yAxis: {
+                                title: {
+                                    text: 'Stepper Position'
+                                },
+                                labels: {
+                                    formatter: function () {
+                                        return this.value.toLocaleString('en').replace(/,/g, "'");
+                                    }
+                                }
+                            },
+                            series: [{
+                                name: 'Measured Data',
+                                data: data.characterisation_table,
+                                type: 'scatter',
+                                marker: {
+                                    symbol: 'circle',
+                                    radius: 6,
+                                    fillColor: 'transparent',
+                                    lineColor: data.samplePointColor,
+                                    lineWidth: 2
+                                }
+                            }, {
+                                name: 'Polynomial Fit',
+                                data: data.characterisation_table_poly,
+                                type: 'line',
+                                color: '#1525da',
+                                lineWidth: 2,
+                                marker: {
+                                    enabled: false
+                                }
+                            }],
+                            credits: {
+                                enabled: false
+                            }
+                        });
+                    }
+                } else {
+                    $('#characterisation_plot_40m').hide();
+                    $('#ButtonSave40mToSlave').hide();  // Hide the button when there is no data
+
+                }
+            },
+            error: function () {
+                console.log("Error")
+            }
+        });
+    }
+
+    function updateOrCreateFullCharacterisationPlot() {
+        $.ajax({
+            url: '/get_full_Characterisation_Data',
+            method: 'GET',
+            success: function (data) {
+                if (data.characterisation_table.length > 0) {
+                    console.log(data.plotTitle);
+                    $('#characterisation_plot_full').show();
+                    if (window.characterisationChartFull) {
+                        window.characterisationChartFull.setTitle({text: data.plotTitle});
+                        window.characterisationChartFull.series[0].setData(data.characterisation_table.map(function (point) {
+                            return [point[1], point[0]];
+                        }), true);
+                        window.characterisationChartFull.series[1].setData(data.characterisation_table_poly.map(function (point) {
+                            return [point[1], point[0]];
+                        }), true);
+                        window.characterisationChartFull.redraw();  // Ensure the chart is redrawn
+                    } else {
+                        // Destroy the chart if it exists before reinitializing
+                        if (window.characterisationChartFull) {
+                            window.characterisationChartFull.destroy();
+                        }
+                        window.characterisationChartFull = Highcharts.chart('characterisation_plot_full', {
+                            chart: {
+                                type: 'scatter'
+                            },
+                            title: {
+                                text: data.plotTitle
+                            },
+                            xAxis: {
+                                title: {
+                                    text: 'Resonance Frequency (MHz)'
+                                },
+                                labels: {
+                                    formatter: function () {
+                                        return (this.value / 1e6).toFixed(3);
+                                    }
+                                }
+                            },
+                            yAxis: {
+                                title: {
+                                    text: 'Stepper Position'
+                                },
+                                labels: {
+                                    formatter: function () {
+                                        return this.value.toLocaleString('en').replace(/,/g, "'");
+                                    }
+                                }
+                            },
+                            series: [{
+                                name: 'Measured Data',
+                                data: data.characterisation_table,
+                                type: 'scatter',
+                                marker: {
+                                    symbol: 'circle',
+                                    radius: 6,
+                                    fillColor: 'transparent',
+                                    lineColor: data.samplePointColor,
+                                    lineWidth: 2
+                                }
+                            }, {
+                                name: 'Polynomial Fit',
+                                data: data.characterisation_table_poly,
+                                type: 'line',
+                                color: '#1525da',
+                                lineWidth: 2,
+                                marker: {
+                                    enabled: false
+                                }
+                            }],
+                            credits: {
+                                enabled: false
+                            }
+                        });
+                    }
+                } else {
+                    $('#characterisation_plot_full').hide();
+                }
+            },
+            error: function () {
+                console.log("Error")
+            }
+        });
+    }
+
+    function moveStepper(direction) {
+        var stepSize = parseInt($('.step-buttons .active').data('step'), 10);
+        var steps = direction === 'forward' ? stepSize : -stepSize;
+        $.post('/moveStepperBySteps', {steps: steps}, function (data) {
+            console.log("Stepper moving:", steps);
+            $('#moveStepperToast').text('Stepper moving by ' + (steps > 0 ? '+' : '') + formatNumberWithSeparator(steps) + ' steps.').fadeIn().delay(800).fadeOut(); // Show toast
+            disableUIElements(data.move_duration);
+        }).fail(function () {
+            console.error("Error moving stepper");
+        });
+    }
+
+    function disableUIElements(duration) {
+        $('#moveForward, #moveBackward,#moveStepperPosition, #submitStepperPosition, #runCalibration40mButton, #button1000Steps,#button5000Steps,#button10000Steps').prop('disabled', true);
+        clearInterval(ajaxInterval); // Stop periodic AJAX calls
+        setTimeout(function () {
+            $('#moveForward, #moveBackward,#moveStepperPosition, #submitStepperPosition, #runCalibration40mButton, #button1000Steps,#button5000Steps,#button10000Steps').prop('disabled', false);
+            ajaxInterval = setInterval(fetchCurrentStepperPosition, 1000); // Restart periodic AJAX calls
+        }, duration);
+    }
+
+    function saveAndUploadTablestoESP32() {
+        $.post('/saveAndUploadTablestoESP32', function () {
+            $('#saveAndUploadTablestoESP32').fadeIn().delay(1000).fadeOut(); // Show toast
+        }).fail(function () {
+            console.error("Error saveAndUploadTablestoESP32");
+        });
+    }
+
+    $(document).ready(function () {
+        $('.simple-toast').hide();  // Hide toasts initially
+
+        $('.step-buttons .btn').first().addClass('active');
+
+        $('.step-buttons .btn').click(function () {
+            $('.step-buttons .btn').removeClass('active');
+            $(this).addClass('active');
+        });
+
+        $('#moveForward').click(function () {
+            moveStepper('forward');
+        });
+        $('#moveBackward').click(function () {
+            moveStepper('backward');
+        });
+        $('#moveStepperPosition').click(moveStepperPosition);
+        $('#submitStepperPosition').click(submitStepperPosition);
+        $('#runCalibration40mButton').click(start40mAutoCharacterisation);
+        $('#runCalibration20mButton').click(start20mAutoCharacterisation);
+        $('#runCalibrationFullButton').click(startFullPathAutoCharacterisation);
+        $('#ButtonSave20mToSlave').click(saveAndUploadTablestoESP32);
+        $('#ButtonSave40mToSlave').click(saveAndUploadTablestoESP32);
+
+        // Fetch data periodically using setInterval to ensure continuous updates
+        setInterval(fetchDataAndUpdateChart, 800);
+        setInterval(fetchZoomDataAndUpdateChart, 800);
+        setInterval(updateOrCreate40mCharacterisationPlot, 1000);  // Call this every 1 second
+        setInterval(updateOrCreate20mCharacterisationPlot, 1000);
+        setInterval(updateOrCreateFullCharacterisationPlot, 1000);
+        setInterval(getCompletionMessageStatus, 900);
+
+        // Continuously fetch the current stepper position every second
+        ajaxInterval = setInterval(fetchCurrentStepperPosition, 1500);
+    });
+
+</script>
+    </body>
+</html>

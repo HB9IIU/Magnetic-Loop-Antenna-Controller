@@ -1,0 +1,1489 @@
+<!DOCTYPE html>
+<html class="h-100" lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1" name="viewport">
+    <title>MLA Controller Tool</title>
+    <!-- Bootstrap core CSS -->
+    <link href="../static/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Highcharts library -->
+    <script src="../static/js/highcharts.js"></script>
+    <!-- jQuery library -->
+    <script src="../static/js/jquery-3.7.1.min.js"></script>
+    <!-- Popper.js and Bootstrap JS -->
+    <script src="../static/js/popper.min.js"></script>
+    <script src="../static/js/bootstrap.min.js"></script>
+    <!-- Icons -->
+    <link href="../static/font/bootstrap-icons.css" rel="stylesheet">
+
+
+
+    <style>/* Sticky Footer Styles */
+    html, body {
+        height: 100%;
+    }
+
+    body {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .simple-toast {
+        display: none; /* Ensure all toasts are hidden by default */
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        padding: 10px;
+        background-color: #b9f2a0;
+        border: 1px solid #1e1a1a;
+        color: #2b2728;
+        border-radius: 15px;
+        z-index: 9999;
+        width: auto;
+        text-align: center;
+    }
+
+    .simple-toast-warning {
+        display: none; /* Ensure all toasts are hidden by default */
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        padding: 10px;
+        background-color: rgb(255, 2, 2); /* Red background */
+        border: 1px solid #1e1a1a;
+        color: #ffffff; /* Set font color to white */
+        border-radius: 15px;
+        z-index: 9999;
+        width: auto;
+        text-align: center;
+    }
+
+    .toast-center {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .simple-toast.show {
+        display: block; /* Show the toast when triggered */
+    }
+
+    main {
+        flex: 1 0 auto;
+    }
+
+    footer {
+        flex-shrink: 0;
+    }
+
+    /* Additional Styles */
+    main > .container {
+        padding: 60px 15px 0;
+    }
+
+    .w-100 {
+        height: 400px;
+    }
+
+    #S11ChartContainer, #S11ZoomChartContainer {
+        width: 100%;
+        height: 100%;
+    }
+
+    .control-panel {
+        text-align: center;
+        margin-top: 12px;
+    }
+
+    .step-buttons-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-top: 10px;
+    }
+
+    .step-buttons {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        margin-top: 10px;
+    }
+
+    .btn-group .btn {
+        margin: 5px;
+    }
+
+    .btn-secondary.active {
+        background-color: #007bff;
+        color: white;
+    }
+
+    .input-field-small {
+        width: 60%;
+        margin: 0 auto;
+    }
+
+    .table-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+    }
+
+    table {
+        width: auto;
+        border: none;
+    }
+
+    table td {
+        background-color: white;
+        padding: 5px;
+        border: none;
+    }
+
+    #S11ChartContainer {
+        height: 325px;
+        margin-top: -9px;
+    }
+
+    #stream-container {
+        width: 100%;
+        max-width: 360px; /* Limit container width to 640px */
+        margin: 0 auto;
+        background-color: #c8c6c6;
+        padding: 2px;
+        border-radius: 24px;
+        text-align: center;
+    }
+
+    #stream {
+        width: 100%;
+        height: auto;
+        max-width: 360px; /* Prevent the image from being larger than 640px */
+        border-radius: 8px;
+    }
+
+    .form-check-input {
+        background-color: #6C757D !important;
+        border-color: #6C757D !important;
+    }
+
+    .form-check-input:checked {
+        background-color: #6C757D !important;
+        border-color: #6C757D !important;
+
+
+
+    }</style>
+    </style>
+</head>
+<body class="d-flex flex-column h-100">
+<header>
+    <nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
+        <div class="container-fluid"><a class="navbar-brand" href="#">HB9IIU MLA+</a>
+            <button aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation"
+                    class="navbar-toggler" data-bs-target="#navbarCollapse" data-bs-toggle="collapse" type="button">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarCollapse">
+                <ul class="navbar-nav me-auto mb-2 mb-md-0">
+                    <li class="nav-item active">
+                        <a aria-current="page" class="nav-link" href="characteristics.html">Characteristics</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+</header>
+<main class="flex-shrink-0">
+    <div class="container">
+        <div class="row">
+            <div class="col-md-9">
+                <h6 class="mt-0 pt-0 text-center" style="margin-top: 13px;">Frequency Response and S11 Reflection
+                    Coefficient</h6>
+                <div id="S11ChartContainer"></div>
+            </div>
+            <div class="col-md-3">
+                <h6 class="mt-0 pt-0 text-center" style="margin-top: 13px;">Capacitor Drive Live Feed</h6>
+                <div id="stream-container">
+                    <img alt="ESP32 Camera Stream" id="stream" src="http://192.168.4.11:81/stream">
+                </div>
+                <div class="form-check form-switch d-flex justify-content-center" data-pg-collapsed>
+                    <input class="form-check-input" id="flashLigthToggleSwitch" type="checkbox">
+                    <label class="form-check-label ms-2" for="flashLigthToggleSwitch">Flashlight</label>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 w-100">
+            <div class="row" style="padding-bottom: 10px;">
+                <div class="col-md-6">
+                    <div class="row">
+                        <div class="col-md-6 control-panel">
+                            <h6>Stepper Position</h6>
+                            <h6 class="bg-white" id="stepperPositionDisplay" style="color: #b70606;">???'???</h6>
+                            <table>
+                                <tbody>
+                                <tr>
+                                    <td style="text-align: left; padding-left: 20px;">
+                                        <button class="btn btn-secondary" id="moveSteppertoNewPosition" type="button">
+                                            Mov
+                                        </button>
+                                    </td>
+                                    <td>
+                                        <input class="form-control" id="stepperPosForFlash" maxlength="9"
+                                               placeholder="Steps" style="text-align: center;" type="number">
+                                    </td>
+                                    <td style="text-align: right; padding-right: 20px;">
+                                        <button class="btn btn-secondary" id="submitStepperPosition" type="button">Set
+                                        </button>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                            <!-- Close table properly -->
+                            <table style="width: 100%;">
+                                <tbody>
+                                <tr>
+                                    <td style="text-align: center;"></td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <button class="btn btn-secondary" id="runCalibration40mButton"
+                                                style="height: 40px; margin: 0;" type="button">40 m
+                                        </button>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-secondary" id="runCalibrationFullButton"
+                                                style="height: 40px; margin: 0 10px;" type="button">Initial
+                                        </button>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-secondary" id="runCalibration20mButton"
+                                                style="height: 40px; margin: 0;" type="button">20 m
+                                        </button>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="col-md-6 control-panel">
+                            <h6 style="margin-bottom: 12px;">Stepper Motor Control</h6>
+                            <div aria-label="Motor Controls" class="btn-group" role="group">
+                                <button class="btn btn-secondary" id="moveBackward" type="button">
+                                    <i class="bi bi-arrow-left-square" style="font-size: 20px;"></i> Backward
+                                </button>
+                                <button class="btn btn-secondary" id="moveForward" type="button">Forward <i
+                                        class="bi bi-arrow-right-square" style="font-size: 20px;"></i>
+                                </button>
+                            </div>
+                            <div class="step-buttons-container">
+                                <h6 style="margin-bottom: -8px;">Steps to Go</h6>
+                                <div class="step-buttons btn-group" role="group">
+                                    <button class="btn btn-secondary" data-step="1000" id="button1000Steps"
+                                            type="button">1'000
+                                    </button>
+                                    <button class="btn btn-secondary" data-step="5000" id="button5000Steps"
+                                            type="button">
+                                        5'000
+                                    </button>
+                                    <button class="btn btn-secondary" data-step="10000" id="button10000Steps"
+                                            type="button">
+                                        10'000
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 control-panel">
+                            <h6>40m Band Test</h6>
+                            <div class="table-container" style="margin-top: -10px;">
+                                <table>
+                                    <tbody>
+                                    <tr>
+                                        <td>
+                                            <button class="btn btn-secondary"
+                                                    onclick="manualTestForSpecificFrequency('7.00')" type="button">
+                                                7.00
+                                            </button>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-secondary"
+                                                    onclick="manualTestForSpecificFrequency('7.05')" type="button">
+                                                7.05
+                                            </button>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-secondary"
+                                                    onclick="manualTestForSpecificFrequency('7.10')" type="button">
+                                                7.10
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <button class="btn btn-secondary"
+                                                    onclick="manualTestForSpecificFrequency('7.15')" type="button">
+                                                7.15
+                                            </button>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-secondary"
+                                                    onclick="manualTestForSpecificFrequency('7.20')" type="button">
+                                                7.20
+                                            </button>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-secondary"
+                                                    onclick="manualTestForSpecificFrequency('7.25')" type="button">
+                                                7.25
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="col-md-6 control-panel">
+                            <h6>20m Band Test</h6>
+                            <div class="table-container" style="margin-top: -10px;">
+                                <table>
+                                    <tbody>
+                                    <tr>
+                                        <td>
+                                            <button class="btn btn-secondary"
+                                                    onclick="manualTestForSpecificFrequency('14.00')" type="button">
+                                                14.00
+                                            </button>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-secondary"
+                                                    onclick="manualTestForSpecificFrequency('14.05')" type="button">
+                                                14.05
+                                            </button>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-secondary"
+                                                    onclick="manualTestForSpecificFrequency('14.10')" type="button">
+                                                14.10
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <button class="btn btn-secondary"
+                                                    onclick="manualTestForSpecificFrequency('14.15')" type="button">
+                                                14.15
+                                            </button>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-secondary"
+                                                    onclick="manualTestForSpecificFrequency('14.20')" type="button">
+                                                14.20
+                                            </button>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-secondary"
+                                                    onclick="manualTestForSpecificFrequency('14.25')" type="button">
+                                                14.25
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="container">
+                        <h6 class="text-center" style="margin-top: 13px;">S11 and SWR Characteristics Around
+                            Resonance</h6>
+                        <div id="S11ZoomChartContainer"
+                             style="margin-top: -10px; min-height: 400px; margin-bottom: 80px;"></div>
+                    </div>
+                </div>
+                <div class="col-md-12" style="text-align: center;">
+                    <div id="characterisation_plot_full" style="width: 100%; height: 550px; margin-bottom: 25px;"></div>
+                    <div id="characterisation_plot_40m" style="width: 100%; height: 550px;"></div>
+                    <button class="btn btn-secondary" id="ButtonSave40mToSlave" type="button"><i
+                            class="bi bi-box-arrow-down" style="font-size: 20px;"></i>
+                        Save New
+                        Lookup Table to ESP32
+                        Controller <i class="bi bi-box-arrow-down" style="font-size: 20px;"></i>
+                    </button>
+                    <div id="characterisation_plot_20m" style="width: 100%; height: 550px; margin-top: 25px;"></div>
+                    <button class="btn btn-secondary" id="ButtonSave20mToSlave" type="button">
+                        <i class="bi bi-box-arrow-down" style="font-size: 20px;"></i>
+                        Save New
+                        Lookup Table to ESP32
+                        Controller <i class="bi bi-box-arrow-down" style="font-size: 20px;"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+<!-- Toast Notifications -->
+<div class="simple-toast toast-center" id="fullPathCharacterisationToast" role="alert">Full Path Automatic
+    Initial Characterization Started!
+</div>
+<div class="simple-toast toast-center" id="goToNewPositionToast" role="alert">Stepper moving to specified new position
+</div>
+<div class="simple-toast toast-center" id="setNewPosinFlashConfirmation" role="alert">Stepper position successfully
+    updated!
+</div>
+<div class="simple-toast toast-center" id="calibrationToast" role="alert">Automatic Characterization Started!</div>
+<div class="simple-toast toast-center" id="moveStepperToast" role="alert">Stepper moved by specified steps.</div>
+<div class="simple-toast toast-center" id="testFrequencyToast" role="alert"></div>
+<div class="simple-toast toast-center" id="CompletionToast" role="alert">Operation Completed!</div>
+<div class="simple-toast toast-center" id="saveAndUploadTablestoESP32" role="alert">Uploading Lookup Table to ESP32
+</div>
+<div class="simple-toast-warning toast-center" id="NoConnectionToESP32" role="alert" style="font-size: 18px;">Please
+    switch your
+    WiFi connection to the
+    'HB9IIU-MLA' network using your device network settings.
+</div>
+<!-- JavaScript code to initialize and handle charts and buttons -->
+<script type="text/javascript">
+
+    var characterisationChartFullCreated = false;  // Add a flag to track if the chart has been created
+    var characterisation_plot_20mCreated = false;  // Add a flag to track if the chart has been created
+    var characterisation_plot_40mCreated = false;  // Add a flag to track if the chart has been created
+
+    var chart;
+    var target_frequency = 0;
+    var zoomChart;
+    var stepperPositionPolling;
+    var connectionCheckPolling;
+    var bandRangeStart = 6.5;
+    var bandRangeStop = 15;
+    var elementsToDisable = $('#moveForward, #moveBackward, #moveSteppertoNewPosition, #submitStepperPosition, #runCalibrationFullButton, #runCalibration40mButton, #button1000Steps, #button5000Steps, #button10000Steps, .btn-secondary');
+
+    let intervalId = setInterval(getCompletionMessageStatus, 900);  // used in getCompletionMessageStatus()
+
+
+    function checkConnectionWithESP32() {
+        let connectionCheckInterval = setInterval(function () {
+            $.get('/checkConnectionWithESP32', function (data) {
+                console.log(data);
+                if (data === "OK") {
+                    clearInterval(connectionCheckInterval); // Stop retrying if "OK" is received
+                    console.log("Connection established with ESP32");
+                    $('#NoConnectionToESP32').fadeOut(); // Hide the toast
+
+                    // Get the existing stream element
+                    let streamImg = document.getElementById("stream");
+
+                    // Only refresh the video stream if it's not already loading/working
+                    if (!streamImg.src.includes("192.168.4.11:81/stream")) {
+                        console.log("Refreshing video stream...");
+
+                        // Force refresh the video stream by updating the src with a new timestamp
+                        streamImg.src = "http://192.168.4.11:81/stream" + "?timestamp=" + new Date().getTime();
+                        streamImg.onerror = function () {
+                            this.src = '/static/img/esp32-cam-offline.png'; // Fallback image if stream fails
+                        };
+
+                        console.log("Video stream refreshed.");
+                    } else {
+                        console.log("Video stream already loaded, no refresh needed.");
+                    }
+                } else {
+                    console.log("No connection, retrying...");
+                    $('#NoConnectionToESP32').fadeIn(200).delay(1000).fadeOut(200); // Show toast faster and for shorter time
+                }
+            }).fail(function () {
+                console.log("Error checking connection. Retrying...");
+            });
+        }, 2000); // Retry every 5 seconds
+    }
+
+    function formatNumberWithSeparator(value) {
+        return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'");
+    }
+
+    function manualTestForSpecificFrequency(frequency) {
+        // Convert frequency from MHz to Hz
+        target_frequency = frequency * 1e6;
+        console.log(`Target frequency (Hz): ${target_frequency}`);
+
+        // Send POST request to the Flask server
+        $.post('/manual_test_frequency', {frequency: frequency}, function (response) {
+            // Log the response from the Flask server
+            console.log('Response from Flask:', response);
+
+            // Disable UI elements based on estimated duration
+            disableUIElements(response.estimated_duration);
+
+            // Check if the response contains a valid estimated_duration
+            if (response && response.estimated_duration) {
+                // Round the estimated duration (in milliseconds) to the nearest whole number
+                const roundedDuration = Math.round(response.estimated_duration / 1000);
+
+                // Format and display the toast message with a line break
+                $('#testFrequencyToast').html(`
+                Frequency ${frequency} MHz sent for testing!<br>
+                Estimated tuning duration: ${formatNumberWithSeparator(roundedDuration)} seconds.
+            `).fadeIn().delay(response.estimated_duration).fadeOut(); // Show toast for the duration of the tuning
+            } else {
+                console.error('Invalid response from Flask:', response);
+                // Handle error or unexpected response
+            }
+        }).fail(function () {
+            // Log an error message if the request fails
+            console.error("Error sending frequency to /manual_test_frequency endpoint");
+            // Handle AJAX request failure
+        });
+    }
+
+    function getCompletionMessageStatus() {
+        fetch('/getCompletionMessageStatus', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.completion_message !== "") {
+                    console.log('Completion message:', data.completion_message);
+
+                    // Show the completion message in a toast
+                    $('#CompletionToast').text(data.completion_message).fadeIn().delay(5000).fadeOut();
+
+                    // Scroll to the bottom of the page
+                    window.scrollTo({
+                        top: document.body.scrollHeight,
+                        behavior: 'smooth'
+                    });
+
+                    // Set flags to false for future interactions
+                    characterisationChartFullCreated = false;
+                    characterisation_plot_20mCreated = false;
+                    characterisation_plot_40mCreated = false;
+
+                    // Scroll back up after 10 seconds
+                    setTimeout(() => {
+                        window.scrollTo({
+                            top: 0,  // Scroll back to the top
+                            behavior: 'smooth'
+                        });
+                    }, 10000);  // 10000 milliseconds = 10 seconds
+
+                    // Pause the interval for 3 seconds
+                    clearInterval(intervalId);
+                    setTimeout(() => {
+                        intervalId = setInterval(getCompletionMessageStatus, 1000); // Restart the interval after 3 seconds
+                    }, 3000);  // Delay for 3 seconds
+                }
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+    }
+
+
+
+
+    function createOrUpdateWideSweepChart(data) {
+        // Pre-calculate the S11 data for better performance
+        const s11Data = data.s11.map((s, index) => [data.frequency[index] / 1e6, s]);
+
+        // Calculate dynamic minimum y-axis value
+        const minY = Math.min(-1, Math.floor(Math.min(...data.s11) - 1));
+
+        // Initialize plot lines array
+        const plotLines = [];
+
+        // Add plot line for minimum frequency if available
+        if (data?.min_frequency) {
+            plotLines.push({
+                color: '#FF0000', // Red in hex
+                dashStyle: 'shortdot',
+                width: 2,
+                value: data.min_frequency / 1e6,
+                label: {
+                    useHTML: true,  // Enable HTML rendering
+                    text: `<div style="text-align: center; background-color: #ffffff; padding: 5px; border-radius: 5px;">
+                    ${formatNumberWithSeparator(data.min_frequency)} Hz<br>(${Math.round(data.min_s11_db)} dB)
+                </div>`,
+                    align: 'center',
+                    verticalAlign: 'bottom',
+                    rotation: 0,
+                    y: 60,
+                    style: {
+                        color: '#b62020',
+                        fontSize: '13px',
+                        fontWeight: 'normal'
+                    }
+                },
+                zIndex: 4
+            });
+        }
+
+        // If chart exists, update it
+        if (chart) {
+            chart.series[0].setData(s11Data, true, false, false);
+
+            chart.xAxis[0].update({
+                plotLines: plotLines,
+                labels: {
+                    formatter: function () {
+                        return this.value.toFixed(2);
+                    }
+                }
+            }, false);
+
+            chart.yAxis[0].update({
+                min: minY
+            }, false);
+
+            chart.redraw();
+        }
+        // Otherwise, create a new chart
+        else {
+            chart = Highcharts.chart('S11ChartContainer', {
+                chart: {
+                    type: 'line',
+                    animation: true,
+                    marginBottom: 90,
+                    plotBackgroundColor: '#eaeaea',
+                },
+                title: {
+                    text: null
+                },
+                xAxis: {
+                    title: {
+                        text: 'Frequency (MHz)'
+                    },
+                    min: bandRangeStart,
+                    max: bandRangeStop,
+                    tickInterval: 0.05,
+                    gridLineWidth: 1,
+                    gridLineColor: '#CCCCCC', plotLines: plotLines,
+                    labels: {
+                        formatter: function () {
+                            return this.value.toFixed(2);
+                        }
+                    }
+                },
+                yAxis: {
+                    title: {
+                        text: 'S11 (dB)'
+                    },
+                    min: minY,
+                    max: 0,
+                    gridLineWidth: 1,
+                    gridLineColor: '#CCCCCC',
+                },
+                legend: {
+                    enabled: false
+                },
+                tooltip: {
+                    useHTML: true,
+                    formatter: function () {
+                        return `<span style="font-size: 14px;">${this.x.toFixed(6)} MHz</span><br/>` +
+                            `<span style="font-size: 14px;">S11 (dB): ${this.y.toFixed(1)}</span>`;
+                    }
+                },
+                series: [{
+                    name: 'S11 (dB)',
+                    showInLegend: false,
+                    data: s11Data,
+                    color: '#1a436c',
+                    lineWidth: 1
+                }],
+                credits: {
+                    enabled: false
+                }
+            });
+        }
+    }
+
+    function fetchZoomDataAndUpdateChart() {
+        $.getJSON('/zoom_data', function (data) {
+            createOrUpdateZoomChart({
+                frequency: data.ns_frequency_array,
+                s11: data.ns_s11_db_array,
+                swr: data.ns_swr_array,
+                min_s11_db: data.ns_min_s11_db,
+                min_swr: data.ns_min_swr,
+                min_frequency: data.ns_freq_at_min_s11,
+            });
+        }).fail(function () {
+            console.error("Error fetching data from /zoom_data endpoint");
+            setTimeout(fetchZoomDataAndUpdateChart, 800);  // Retry after 800 ms
+        });
+    }
+
+    function createOrUpdateZoomChart(data) {
+        // Calculate dynamic minimum y-axis value based only on the S11 data
+        var minY = Math.min(-1, Math.floor(Math.min.apply(null, data.s11) - 1));
+
+        // Initialize plot lines array for x-axis
+        var plotLines = [];
+
+        // Add plot line for minimum frequency if available
+        if (data.min_frequency !== null) {
+            plotLines.push({
+                color: '#2a9d59', // Green in hex
+                dashStyle: 'shortdot',
+                width: 2,
+                value: data.min_frequency / 1e6,  // Frequency in MHz
+                label: {
+                    useHTML: true,
+                    text: `<div style="text-align: center; background-color: #eaeaea; padding: 5px; border-radius: 5px;">
+                    ${formatNumberWithSeparator(data.min_frequency)} Hz<br>(${data.min_swr.toFixed(1)} SWR)
+                    </div>`,
+                    align: 'center',
+                    verticalAlign: 'top',
+                    rotation: 0,
+                    y: 14,
+                    style: {
+                        color: '#000000',
+                        fontSize: '16px',
+                        fontWeight: 'normal'
+                    }
+                },
+                zIndex: 4
+            });
+        }
+
+        // Add vertical line at target_frequency if target_frequency is not 0
+        if (target_frequency !== 0 && target_frequency >= Math.min.apply(null, data.frequency) && target_frequency <= Math.max.apply(null, data.frequency)) {
+            plotLines.push({
+                color: '#1a436c', // Blue in hex
+                dashStyle: 'ShortDash',
+                width: 3,
+                value: target_frequency / 1e6,  // Frequency in MHz
+                zIndex: 4,
+                // No need to include it in the legend!
+                label: {enabled: false} // Disable the label in the legend
+            });
+        }
+
+        // Prepare the series data
+        var series = [{
+            name: 'S11 (dB)', // Ensure the name is distinct
+            showInLegend: true,
+            color: '#ea1616',
+            lineWidth: 1,
+            data: data.s11.map(function (s, index) {
+                return [data.frequency[index] / 1e6, s];
+            })
+        }, {
+            name: 'SWR', // Ensure the name is distinct
+            yAxis: 1,
+            showInLegend: true,
+            color: '#2a9d59',
+            lineWidth: 1,
+            data: data.swr.map(function (swr, index) {
+                return [data.frequency[index] / 1e6, swr];
+            })
+        }];
+
+        // Now check if the chart already exists
+        if (zoomChart) {
+            // If chart exists, update the data and plot lines
+            zoomChart.series[0].setData(data.s11.map(function (s, index) {
+                return [data.frequency[index] / 1e6, s];
+            }), false, false, false);
+
+            zoomChart.series[1].setData(data.swr.map(function (swr, index) {
+                return [data.frequency[index] / 1e6, swr];
+            }), false, false, false);
+
+            zoomChart.xAxis[0].update({
+                plotLines: plotLines
+            }, false);
+
+            zoomChart.yAxis[0].update({
+                min: minY
+            }, false);
+
+            zoomChart.redraw();
+        } else {
+            // If chart doesn't exist, create a new one
+            zoomChart = Highcharts.chart('S11ZoomChartContainer', {
+                chart: {
+                    type: 'line',
+                    animation: true,
+                    marginBottom: 110,
+                    plotBackgroundColor: '#eaeaea',
+                },
+                title: {
+                    text: null
+                },
+                xAxis: {
+                    title: {
+                        text: 'Frequency (MHz)'
+                    },
+                    tickInterval: 0.01,
+                    gridLineWidth: 1,
+                    gridLineColor: '#CCCCCC',
+                    plotLines: plotLines,
+                    labels: {
+                        formatter: function () {
+                            return this.value.toFixed(2);
+                        }
+                    }
+                },
+                yAxis: [{ // Primary y-axis for S11
+                    title: {
+                        text: 'S11 (dB)'
+                    },
+                    min: minY,
+                    max: 0,
+                    gridLineColor: '#CCCCCC',
+                    gridLineWidth: 1
+                }, { // Secondary y-axis for SWR
+                    title: {
+                        text: 'SWR'
+                    },
+                    opposite: true,
+                    min: 1,
+                    startOnTick: false,
+                    endOnTick: false,
+                    gridLineColor: '#CCCCCC',
+                    gridLineWidth: 1,
+                    labels: {
+                        formatter: function () {
+                            return this.value.toFixed(1); // Corrected line
+                        }
+                    },
+                    plotLines: [{
+                        color: '#ea1616', // Red in hex
+                        dashStyle: 'LongDashDot',
+                        width: 2,
+                        value: 3,  // SWR value to plot
+                        zIndex: 4
+                    }]
+                }],
+                legend: {
+                    enabled: true,
+                    y: -15,
+                    itemStyle: { // Ensuring good separation in legend
+                        fontSize: '12px',
+                        fontWeight: 'normal'
+                    }
+                },
+                tooltip: {
+                    useHTML: true,
+                    formatter: function () {
+                        return `<span style="font-size: 14px;">${this.x.toFixed(2)} MHz</span><br/>` +
+                            `<span style="font-size: 14px;">${this.series.name}: ${this.y.toFixed(1)}</span>`;
+                    }
+                },
+                series: series,
+                credits: {
+                    enabled: false
+                }
+            });
+        }
+    }
+
+    function fetchDataAndUpdateChart() {
+        $.getJSON('/wide_sweep_data', function (data) {
+            createOrUpdateWideSweepChart({
+                frequency: data.ws_frequency_array,
+                s11: data.ws_s11_db_array,
+                min_s11_db: data.ws_min_s11_db,
+                min_frequency: data.ws_freq_at_min_s11,
+            });
+        }).fail(function () {
+            console.error("Error fetching wide sweep data from /wide_sweep_data endpoint");
+            setTimeout(fetchDataAndUpdateChart, 800);  // Retry after 800 ms
+        });
+    }
+
+    function fetchCurrentStepperPosition() {
+        $.get('/returnCurrentStepperPosition', function (data) {
+            var formattedPosition = formatNumberWithSeparator(data);
+            $('#stepperPositionDisplay').text(formattedPosition);
+        }).fail(function () {
+            console.error("Error fetching current stepper position from /returnCurrentStepperPosition endpoint");
+            $('#stepperPositionDisplay').text("Error");
+            setTimeout(fetchCurrentStepperPosition, 1000);  // Retry after 1 second
+        });
+    }
+
+    function moveSteppertoNewPosition() {
+        var targetPosition = $('#stepperPosForFlash').val();
+        $.post('/moveSteppertoNewPosition', {position: targetPosition}, function (data) {
+            console.log("Stepper moving to new pos:", targetPosition, ", Steps to Go:", data.steps_to_go, ", Estimated Duration:", data.move_duration, "ms");
+
+            // Construct the message with HTML line breaks
+            var message = `
+    Stepper moving to new pos: ${formatNumberWithSeparator(targetPosition)}<br>
+    Steps to go: ${formatNumberWithSeparator(data.steps_to_go)}<br>
+    Estimated duration: ${formatNumberWithSeparator(data.move_duration)} ms
+`;
+
+// Set the message in the toast element, display it, and then hide it after a delay
+            $('#goToNewPositionToast').html(message).fadeIn().delay(data.move_duration).fadeOut(); // Show toast with move duration
+
+
+            disableUIElements(data.move_duration);
+
+        }).fail(function () {
+            console.error("Error submitting new stepper position to /moveSteppertoNewPosition endpoint");
+            $('#goToNewPositionToast').text("Error moving stepper!").fadeIn().delay(800).fadeOut(); // Show error message in toast
+        });
+    }
+
+    function submitStepperPosition() {
+        var newPosition = $('#stepperPosForFlash').val();
+        $.post('/setNewStepperPositionInSlave', {position: newPosition}, function (data) {
+            console.log("Position submitted successfully:", data);
+            $('#setNewPosinFlashConfirmation').fadeIn().delay(800).fadeOut(); // Show toast
+        }).fail(function () {
+            console.error("Error submitting new stepper position to /setNewStepperPositionInSlave endpoint");
+        });
+    }
+
+    function disableUIForCharacterization() {
+        elementsToDisable.prop('disabled', true);
+        charInterval = setTimeout(checkCharacterizationStatus, 2000);
+    }
+
+    function checkCharacterizationStatus() {
+        $.get('/checkCharacterisationStatus', function (data) {
+            if (!data.characterisationRoutineRunning) {
+                elementsToDisable.prop('disabled', false);
+            } else {
+                setTimeout(checkCharacterizationStatus, 2000);  // Check again after 2 seconds
+            }
+        }).fail(function () {
+            console.error("Error checking characterisation status");
+        });
+    }
+
+    function start40mAutoCharacterisation() {
+        target_frequency = 0 // to make the target line disappear
+        $.post('/start40mAutoCharaterisationRoutine', function () {
+            let message = `
+            Automatic characterization for the 40-meter band has started.<br>
+            The stepper will first move until the resonance frequency is just before the start of the band.<br>
+            Please follow the progress on the dynamic plot that will appear at the bottom.
+        `;
+
+            $('#calibrationToast').html(message).fadeIn(500).delay(10000).fadeOut(1000); // Show toast
+
+            disableUIForCharacterization();  // Disable the UI and start checking
+        }).fail(function () {
+            console.error("Error starting auto characterization routine");
+        });
+    }
+
+    function start20mAutoCharacterisation() {
+        target_frequency = 0 // to make the target line disappear
+
+        $.post('/start20mAutoCharaterisationRoutine', function () {
+            let message = `
+    Automatic characterization for the 20-meter band has started.<br>
+    The stepper will first move until the resonance frequency is just before the start of the band.<br>
+    Please follow the progress on the dynamic plot that will appear at the bottom.
+`;
+
+            $('#calibrationToast').html(message).fadeIn(500).delay(10000).fadeOut(1000); // Show toast
+
+            disableUIForCharacterization();  // Disable the UI and start checking
+        }).fail(function () {
+            console.error("Error starting auto characterization routine");
+        });
+    }
+
+    function startFullPathAutoCharacterisation() {
+        target_frequency = 0; // Make the target line disappear
+
+        // Send a request to start the auto characterization process
+        $.post('/startFullPathAutoCharacterisation', function () {
+            // Message to display when the process starts
+            let message = `
+            Automatic full path characterization has started.<br>
+            The stepper will first move until the resonance frequency is just before the start of the band.<br>
+            Please follow the progress on the dynamic plot that will soon appear at the bottom.
+        `;
+
+            // Display toast message
+            $('#calibrationToast').html(message).fadeIn(500).delay(10000).fadeOut(1000);
+
+            // Disable the UI while the characterization is in progress
+            disableUIForCharacterization();
+
+        }).fail(function () {
+            // Message to display on failure
+            let errorMessage = `
+            Failed to start the auto characterization.<br>
+            Please try again.
+        `;
+
+            // Display failure toast message
+            $('#calibrationToast').html(errorMessage).fadeIn(500).delay(10000).fadeOut(1000);
+        });
+    }
+
+    function updateOrCreate20mCharacterisationPlot() {
+        $.ajax({
+            url: '/get_20m_Characterisation_Data',
+            method: 'GET',
+            success: function (data) {
+                // Check if the data contains characterization table data
+                if (data.characterisation_table.length > 0) {
+                    $('#characterisation_plot_20m').show();
+
+                    // Map the characterisation data to the format needed for Highcharts
+                    const characterisationData = data.characterisation_table.map(function (point, index) {
+                        const isLastPoint = (index === data.characterisation_table.length - 1);
+
+                        return {
+                            x: point[1],  // Resonance frequency (X-axis)
+                            y: point[0],  // Stepper position (Y-axis)
+                            marker: {
+                                fillColor: isLastPoint ? 'rgba(13,193,87,0.91)' : 'transparent',  // Highlight last point
+                                lineColor: isLastPoint ? '#000' : data.samplePointColor,
+                                lineWidth: isLastPoint ? 2 : 1,
+                                radius: isLastPoint ? 6 : 6
+                            }
+                        };
+                    });
+
+                    // Check if the chart already exists
+                    if (window.characterisationChart20m) {
+                        // Update the existing chart with new data
+                        window.characterisationChart20m.series[0].setData(characterisationData, true);
+                        window.characterisationChart20m.series[1].setData(
+                            data.characterisation_table_poly.map(point => [point[1], point[0]]),
+                            true
+                        );
+                        window.characterisationChart20m.setTitle({text: data.plotTitle});
+                        window.characterisationChart20m.redraw();  // Redraw the chart
+
+                        // Show the "Save to ESP32" button if it's not already visible
+                        if (!$('#ButtonSave20mToSlave').is(':visible')) {
+                            $('#ButtonSave20mToSlave').show();
+                        }
+
+                    } else {
+                        // If no chart exists, create a new one
+                        if (window.characterisationChart20m) {
+                            window.characterisationChart20m.destroy();  // Clean up any old chart
+                        }
+
+                        // Create a new Highcharts chart
+                        window.characterisationChart20m = Highcharts.chart('characterisation_plot_20m', {
+                            chart: {
+                                type: 'scatter',
+                                height: 600  // Set chart height
+                            },
+                            title: {text: data.plotTitle},
+                            xAxis: {
+                                title: {text: 'Resonance Frequency (MHz)'},
+                                labels: {
+                                    formatter: function () {
+                                        return (this.value / 1e6).toFixed(3);  // Convert to MHz and format
+                                    }
+                                }
+                            },
+                            yAxis: {
+                                title: {text: 'Stepper Position'},
+                                labels: {
+                                    formatter: function () {
+                                        return this.value.toLocaleString('en').replace(/,/g, "'");  // Format with thousand separators
+                                    }
+                                }
+                            },
+                            series: [{
+                                name: 'Measured Data',
+                                data: characterisationData,
+                                type: 'scatter',
+                                marker: {
+                                    symbol: 'circle',
+                                    radius: 6,
+                                    fillColor: 'transparent',
+                                    lineColor: data.samplePointColor,
+                                    lineWidth: 2
+                                }
+                            }, {
+                                name: 'Polynomial Fit',
+                                data: data.characterisation_table_poly,
+                                type: 'line',
+                                color: '#1525da',
+                                lineWidth: 2,
+                                marker: {enabled: false}
+                            }],
+                            credits: {enabled: false}  // Remove credits from chart
+                        });
+
+                        // Scroll to the bottom of the page after creating the chart for the first time
+                        if (!characterisation_plot_20mCreated) {
+                            characterisation_plot_20mCreated = true;  // Set flag to prevent further scrolling
+
+                            window.scrollTo({
+                                top: document.body.scrollHeight,  // Scroll to the bottom
+                                behavior: 'smooth'  // Smooth scrolling
+                            });
+                        }
+                    }
+
+                } else {
+                    // Hide the chart and button if no data is available
+                    $('#characterisation_plot_20m').hide();
+                    $('#ButtonSave20mToSlave').hide();
+                }
+            },
+            error: function () {
+                console.error("Error fetching 20m characterization data.");
+            }
+        });
+    }
+
+    function updateOrCreate40mCharacterisationPlot() {
+        $.ajax({
+            url: '/get_40m_Characterisation_Data',
+            method: 'GET',
+            success: function (data) {
+                // Check if the data contains characterization table data
+                if (data.characterisation_table.length > 0) {
+                    $('#characterisation_plot_40m').show();
+
+                    // Map the characterization data to the format needed for Highcharts
+                    const characterisationData = data.characterisation_table.map(function (point, index) {
+                        const isLastPoint = (index === data.characterisation_table.length - 1);
+
+                        return {
+                            x: point[1],  // Resonance frequency (X-axis)
+                            y: point[0],  // Stepper position (Y-axis)
+                            marker: {
+                                fillColor: isLastPoint ? 'rgba(13,193,87,0.91)' : 'transparent',  // Highlight last point
+                                lineColor: isLastPoint ? '#000' : data.samplePointColor,
+                                lineWidth: isLastPoint ? 2 : 1,
+                                radius: 6  // Radius for points
+                            }
+                        };
+                    });
+
+                    // Check if the chart already exists
+                    if (window.characterisationChart40m) {
+                        // Update the existing chart with new data
+                        window.characterisationChart40m.series[0].setData(characterisationData, true);
+                        window.characterisationChart40m.series[1].setData(
+                            data.characterisation_table_poly.map(point => [point[1], point[0]]),
+                            true
+                        );
+                        window.characterisationChart40m.setTitle({text: data.plotTitle});
+                        window.characterisationChart40m.redraw();  // Redraw the chart
+
+                        // Show the "Save to ESP32" button if it's not already visible
+                        if (!$('#ButtonSave40mToSlave').is(':visible')) {
+                            $('#ButtonSave40mToSlave').show();
+                        }
+
+                    } else {
+                        // If no chart exists, create a new one
+                        if (window.characterisationChart40m) {
+                            window.characterisationChart40m.destroy();  // Clean up any old chart
+                        }
+
+                        // Create a new Highcharts chart
+                        window.characterisationChart40m = Highcharts.chart('characterisation_plot_40m', {
+                            chart: {
+                                type: 'scatter'
+                            },
+                            title: {text: data.plotTitle},
+                            xAxis: {
+                                title: {text: 'Resonance Frequency (MHz)'},
+                                labels: {
+                                    formatter: function () {
+                                        return (this.value / 1e6).toFixed(3);  // Convert to MHz and format
+                                    }
+                                }
+                            },
+                            yAxis: {
+                                title: {text: 'Stepper Position'},
+                                labels: {
+                                    formatter: function () {
+                                        return this.value.toLocaleString('en').replace(/,/g, "'");  // Format with thousand separators
+                                    }
+                                }
+                            },
+                            series: [{
+                                name: 'Measured Data',
+                                data: characterisationData,  // Use the mapped data
+                                type: 'scatter',
+                                marker: {
+                                    symbol: 'circle',
+                                    radius: 6,
+                                    fillColor: 'transparent',
+                                    lineColor: data.samplePointColor,
+                                    lineWidth: 2
+                                }
+                            }, {
+                                name: 'Polynomial Fit',
+                                data: data.characterisation_table_poly,
+                                type: 'line',
+                                color: '#1525da',
+                                lineWidth: 2,
+                                marker: {enabled: false}
+                            }],
+                            credits: {enabled: false}  // Remove credits from chart
+                        });
+
+                        // Show the "Save to ESP32" button after the chart is fully created
+                        $('#ButtonSave40mToSlave').show();
+
+                        // Scroll to the bottom after creating the chart for the first time
+                        if (!characterisation_plot_40mCreated) {
+                            characterisation_plot_40mCreated = true;  // Set flag to prevent further scrolling
+
+                            window.scrollTo({
+                                top: document.body.scrollHeight,  // Scroll to the bottom
+                                behavior: 'smooth'  // Smooth scrolling
+                            });
+                        }
+                    }
+
+                } else {
+                    // Hide the chart and button if no data is available
+                    $('#characterisation_plot_40m').hide();
+                    $('#ButtonSave40mToSlave').hide();
+                }
+            },
+            error: function () {
+                console.error("Error fetching 40m characterization data.");
+            }
+        });
+    }
+
+    function updateOrCreateFullCharacterisationPlot() {
+        $.ajax({
+            url: '/get_full_Characterisation_Data',
+            method: 'GET',
+            success: function (data) {
+                if (data.characterisation_table.length > 0) {
+                    $('#characterisation_plot_full').show();
+
+                    if (window.characterisationChartFull) {
+                        // Update the existing chart data
+                        window.characterisationChartFull.setTitle({text: data.plotTitle});
+                        window.characterisationChartFull.series[0].setData(data.characterisation_table.map(function (point) {
+                            return [point[1], point[0]];
+                        }), true);
+                        window.characterisationChartFull.series[1].setData(data.characterisation_table_poly.map(function (point) {
+                            return [point[1], point[0]];
+                        }), true);
+                        window.characterisationChartFull.redraw();  // Ensure the chart is redrawn
+                    } else {
+                        // Destroy the chart if it exists before reinitializing
+                        if (window.characterisationChartFull) {
+                            window.characterisationChartFull.destroy();
+                        }
+
+                        // Create the chart for the first time
+                        window.characterisationChartFull = Highcharts.chart('characterisation_plot_full', {
+                            chart: {
+                                type: 'scatter'
+                            },
+                            title: {
+                                text: data.plotTitle
+                            },
+                            xAxis: {
+                                title: {
+                                    text: 'Resonance Frequency (MHz)'
+                                },
+                                labels: {
+                                    formatter: function () {
+                                        return (this.value / 1e6).toFixed(3);
+                                    }
+                                }
+                            },
+                            yAxis: {
+                                title: {
+                                    text: 'Stepper Position'
+                                },
+                                labels: {
+                                    formatter: function () {
+                                        return this.value.toLocaleString('en').replace(/,/g, "'");
+                                    }
+                                }
+                            },
+                            series: [{
+                                name: 'Measured Data',
+                                data: data.characterisation_table,
+                                type: 'scatter',
+                                marker: {
+                                    symbol: 'circle',
+                                    radius: 6,
+                                    fillColor: 'transparent',
+                                    lineColor: data.samplePointColor,
+                                    lineWidth: 2
+                                }
+                            }, {
+                                name: 'Cubic Spline Fit',
+                                data: data.characterisation_table_poly,
+                                type: 'line',
+                                color: '#1525da',
+                                lineWidth: 2,
+                                marker: {
+                                    enabled: false
+                                }
+                            }],
+                            credits: {
+                                enabled: false
+                            }
+                        });
+
+                        // Scroll to the bottom after the chart is created for the first time
+                        if (!characterisationChartFullCreated) {
+                            characterisationChartFullCreated = true;  // Set the flag to true to prevent further scrolling
+
+                            // Scroll to the bottom of the page
+                            window.scrollTo({
+                                top: document.body.scrollHeight,  // Scroll to the bottom of the page
+                                behavior: 'smooth'  // Optional: smooth scroll animation
+                            });
+                        }
+                    }
+                } else {
+                    $('#characterisation_plot_full').hide();
+                }
+            },
+            error: function () {
+                console.log("Error")
+            }
+        });
+    }
+
+    function moveStepper(direction) {
+        var stepSize = parseInt($('.step-buttons .active').data('step'), 10);
+        var steps = direction === 'forward' ? stepSize : -stepSize;
+        $.post('/moveStepperBySteps', {steps: steps}, function (data) {
+            disableUIElements(data.move_duration)
+            // Construct the message with HTML line breaks
+            var message = `
+    Stepper moving by ${steps > 0 ? '+' : ''}${formatNumberWithSeparator(steps)} steps<br>
+    Estimated Duration: ${formatNumberWithSeparator(data.move_duration)} ms
+`;
+// Set the message in the toast element, display it, and then hide it after the move duration
+            $('#moveStepperToast').html(message).fadeIn().delay(data.move_duration).fadeOut(); // Show toast            disableUIElements(data.move_duration);
+        }).fail(function () {
+            console.error("Error moving stepper");
+        });
+    }
+
+    function disableUIElements(duration) {
+        elementsToDisable.prop('disabled', true);
+        $('#stepperPositionDisplay').text("...'...")
+
+        clearInterval(stepperPositionPolling); // Stop periodic AJAX calls
+
+        setTimeout(function () {
+            elementsToDisable.prop('disabled', false);
+            stepperPositionPolling = setInterval(fetchCurrentStepperPosition, 1000); // Restart periodic AJAX calls
+            //connectionCheckPolling= setInterval(connectionCheckPolling, 5000); // Restart periodic AJAX calls
+        }, duration);
+    }
+
+    function saveAndUploadTablestoESP32() {
+        $.post('/saveAndUploadTablestoESP32', function () {
+            $('#saveAndUploadTablestoESP32').fadeIn().delay(1000).fadeOut(); // Show toast
+        }).fail(function () {
+            console.error("Error saveAndUploadTablestoESP32");
+        });
+    }
+
+    $(document).ready(function () {
+        $('.simple-toast').hide();  // Hide toasts initially
+        $('.simple-toast-warning').hide();  // Hide toasts initially
+        // Stream handling logic
+        const streamImg = document.getElementById("stream");
+        const fallbackImg = '/static/img/esp32-cam-offline.png'; // Path to your fallback image
+        let streamLoaded = false; // Track if the stream has successfully loaded
+
+// Set a timeout for the image to load
+        let imageLoadTimeout = setTimeout(function () {
+            if (!streamLoaded) { // Apply fallback only if the stream hasn't loaded
+                console.log("Stream image loading timed out, switching to fallback image.");
+                streamImg.src = fallbackImg; // Switch to fallback if it doesn't load in time
+            }
+        }, 1500); // 1.5-second timeout (adjust as needed)
+
+// Clear the timeout and set flag if the image loads successfully
+        streamImg.onload = function () {
+            streamLoaded = true; // Mark the stream as successfully loaded
+            clearTimeout(imageLoadTimeout); // Prevent fallback image if the stream loads successfully
+            console.log("Stream image loaded successfully.");
+        };
+
+// Handle any error that occurs while loading the image
+        streamImg.onerror = function () {
+            console.log("Error loading stream image, switching to fallback image.");
+            if (!streamLoaded) { // Ensure fallback is applied only if the stream hasn't loaded
+                clearTimeout(imageLoadTimeout); // Ensure the timeout is cleared in case of an error
+                streamImg.src = fallbackImg; // Set fallback image on error
+            }
+        };
+
+
+        $('#flashLigthToggleSwitch').on('change', function () {
+            // Check if the switch is ON or OFF
+            let url;
+            if (this.checked) {
+                url = 'http://192.168.4.11/control?var=led&val=1';  // URL when ON
+            } else {
+                url = 'http://192.168.4.11/control?var=led&val=0';  // URL when OFF
+            }
+            // Make the HTTP request
+            fetch(url)
+                .then(response => {
+                    if (response.ok) {
+                        console.log('Request successful:', url);
+                    } else {
+                        console.error('Request failed:', url);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+        });
+
+
+        $('.step-buttons .btn').first().addClass('active');
+
+        $('.step-buttons .btn').click(function () {
+            $('.step-buttons .btn').removeClass('active');
+            $(this).addClass('active');
+        });
+
+
+        $('#moveForward').click(function () {
+            moveStepper('forward');
+        });
+        $('#moveBackward').click(function () {
+            moveStepper('backward');
+        });
+        $('#moveSteppertoNewPosition').click(moveSteppertoNewPosition);
+        $('#submitStepperPosition').click(submitStepperPosition);
+        $('#runCalibration40mButton').click(start40mAutoCharacterisation);
+        $('#runCalibration20mButton').click(start20mAutoCharacterisation);
+        $('#runCalibrationFullButton').click(startFullPathAutoCharacterisation);
+        $('#ButtonSave20mToSlave').click(saveAndUploadTablestoESP32);
+        $('#ButtonSave40mToSlave').click(saveAndUploadTablestoESP32);
+
+        // Fetch data periodically using setInterval to ensure continuous updates
+        setInterval(fetchDataAndUpdateChart, 800);
+        setInterval(fetchZoomDataAndUpdateChart, 800);
+        setInterval(updateOrCreate40mCharacterisationPlot, 2000);  // Call this every 1 second
+        setInterval(updateOrCreate20mCharacterisationPlot, 2000);
+        setInterval(updateOrCreateFullCharacterisationPlot, 2000);
+
+        stepperPositionPolling = setInterval(fetchCurrentStepperPosition, 1500);
+        checkConnectionWithESP32();
+    });
+
+</script>
+</body>

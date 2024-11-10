@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ESP32 Camera Stream</title>
+    <style>
+        #stream-container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #222;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        #stream {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+
+<h1 style="text-align:center; color:white;">ESP32 Camera Stream</h1>
+
+<!-- Stream div container -->
+<div id="stream-container">
+    <img id="stream" src="http://192.168.0.199:81/stream" alt="ESP32 Camera Stream">
+</div>
+
+</body>
+</html>

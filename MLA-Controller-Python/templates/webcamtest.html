@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ESP32 Camera Stream</title>
+    <style>
+        #stream-container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        #stream {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>ESP32 Camera Stream</h1>
+
+<!-- This is the div where the stream will be displayed -->
+<div id="stream-container">
+    <!-- The img tag will display the MJPEG stream -->
+    <img id="stream" src="">
+</div>
+
+<button id="start-stream">Start Stream</button>
+<button id="stop-stream">Stop Stream</button>
+
+<script>
+    // Set the baseHost manually to the IP address of your ESP32
+    var baseHost = "http://192.168.0.199";
+
+    // Stream URL (usually served on port 81)
+    var streamUrl = baseHost + ":81/stream";
+
+
+    // Get the img element and buttons
+    var streamElement = document.getElementById('stream');
+    var startStreamButton = document.getElementById('start-stream');
+    var stopStreamButton = document.getElementById('stop-stream');
+
+    // Function to start the stream
+    startStreamButton.onclick = function() {
+        streamElement.src = streamUrl; // Set the img src to the stream URL
+    };
+
+    // Function to stop the stream
+    stopStreamButton.onclick = function() {
+        streamElement.src = ''; // Clear the img src to stop the stream
+    };
+</script>
+
+</body>
+</html>

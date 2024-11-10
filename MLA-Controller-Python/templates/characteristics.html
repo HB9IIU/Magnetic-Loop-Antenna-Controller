@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html class="h-100" lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1" name="viewport">
+    <title>MLA Controller Tool</title>
+    <!-- Bootstrap core CSS -->
+    <link href="../static/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Highcharts library -->
+    <script src="../static/js/highcharts.js"></script>
+    <!-- jQuery library -->
+    <script src="../static/js/jquery-3.7.1.min.js"></script>
+    <!-- Popper.js and Bootstrap JS -->
+    <script src="../static/js/popper.min.js"></script>
+    <script src="../static/js/bootstrap.min.js"></script>
+    <!-- Icons -->
+    <link href="../static/font/bootstrap-icons.css" rel="stylesheet">
+    <style>main > .container {
+        padding: 10px 15px 0;
+    }
+
+    .w-100 {
+        height: 100%;
+    }
+
+    .simple-toast {
+        display: none; /* Ensure all toasts are hidden by default */
+        position: fixed;
+        top: 35%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        padding: 10px;
+        background-color: #b9f2a0;
+        border: 1px solid #1e1a1a;
+        color: #2b2728;
+        border-radius: 15px;
+        z-index: 9999;
+        width: auto;
+        text-align: center;
+    }
+
+    .simple-toast-warning {
+        display: none; /* Ensure all toasts are hidden by default */
+        position: fixed;
+        top: 35%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        padding: 10px;
+        background-color: rgb(255, 2, 2); /* Red background */
+        border: 1px solid #1e1a1a;
+        color: #ffffff; /* Set font color to white */
+        border-radius: 15px;
+        z-index: 9999;
+        width: auto;
+        text-align: center;
+    }
+
+    .toast-center {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .simple-toast.show {
+        display: block; /* Show the toast when triggered */
+    }</style>
+</head>
+<body class="d-flex flex-column h-100">
+<header>
+    <!-- Fixed navbar -->
+    <nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">HB9IIU MLA+</a>
+            <button aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation"
+                    class="navbar-toggler" data-bs-target="#navbarCollapse" data-bs-toggle="collapse" type="button">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarCollapse">
+            </div>
+        </div>
+    </nav>
+</header>
+<!-- Begin page content -->
+<main class="flex-shrink-0">
+    <div class="container">
+        <div class="row" style="margin-top: 60px;">
+            <div class="col-12 w-100">
+                <!-- Container for the Highcharts plot -->
+                <div id="40mChartContainer"></div>
+            </div>
+            <div class="h-auto text-center w-100">
+                <button class="btn btn-secondary" id="ButtonSaveTableToSlave" type="button">
+                    <i class="bi bi-box-arrow-up" style="font-size: 20px;"></i>
+                    Upload Lookup Table to ESP32 Controller
+                    Controller <i class="bi bi-box-arrow-up" style="font-size: 20px;"></i>
+                </button>
+            </div>
+            <div class="col-12 w-100">
+                <!-- Container for the Highcharts plot -->
+                <div id="20mChartContainer"></div>
+            </div>
+        </div>
+        <!-- Test Toast Button -->
+    </div>
+    <!-- Toast Notifications -->
+    <div class="simple-toast toast-center" id="saveAndUploadTablestoESP32" role="alert" style="font-size: 18px;">
+        Uploading the Lookup Table to the ESP32 Controller. This process may take up to 10 seconds. You will be notified
+        of success or failure.
+    </div>
+
+
+    <div class="simple-toast toast-center" id="CompletionToastSuccess" role="alert"></div>
+    <div class="simple-toast-warning toast-center" id="CompletionToastFailure" role="alert"></div>
+
+
+</main>
+<script>
+    // Fetch data from the Flask server
+    function fetchDataAndRenderCharts() {
+        $.get('/getCharacteristics', function (data) {
+            // Mapping data to convert frequency to MHz
+            const detailed40mData = data['40m']['detailed'].map(row => [row['Characterisation Frequency'], row['Stepper Position']]);
+            const predicted40mData = data['40m']['predicted'].map(row => [row['Predicted Frequency'], row['Stepper Position']]);
+            const detailed20mData = data['20m']['detailed'].map(row => [row['Characterisation Frequency'], row['Stepper Position']]);
+            const predicted20mData = data['20m']['predicted'].map(row => [row['Predicted Frequency'], row['Stepper Position']]);
+
+            console.log(detailed40mData);
+            console.log(predicted40mData);
+
+            // Function to format numbers with thousand separators
+            function formatNumber(num) {
+                return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'");
+            }
+
+            // Create the 40m chart
+            Highcharts.chart('40mChartContainer', {
+                chart: {type: 'scatter'},
+                credits: {enabled: false},
+                title: {text: '40m Stepper Position vs Frequency'},
+                xAxis: {
+                    title: {text: 'Frequency (MHz)'},
+                    labels: {
+                        formatter: function () {
+                            return formatNumber(this.value.toFixed(0) / 1e6); // Remove decimal places and format with thousand separators
+                        }
+                    }
+                },
+                yAxis: {title: {text: 'Stepper Position'}},
+                tooltip: {
+                    formatter: function () {
+                        return 'Frequency: ' + formatNumber(this.x.toFixed(0)) + ' Hz<br>' +
+                            'Stepper Position: ' + formatNumber(this.y);
+                    }
+                },
+                series: [
+                    {
+                        name: 'Detailed Data',
+                        type: 'scatter',
+                        data: detailed40mData,
+                        marker: {radius: 5},
+                        color: '#FF0000'
+                    },
+                    {
+                        name: 'Predicted Data',
+                        type: 'spline',
+                        data: predicted40mData,
+                        color: '#0000FF'
+                    }
+                ]
+            });
+
+            // Create the 20m chart
+            Highcharts.chart('20mChartContainer', {
+                chart: {type: 'scatter'},
+                credits: {enabled: false},
+                title: {text: '20m Stepper Position vs Frequency'},
+                xAxis: {
+                    title: {text: 'Frequency (MHz)'},
+                    labels: {
+                        formatter: function () {
+                            return formatNumber(this.value.toFixed(0) / 1e6); // Remove decimal places and format with thousand separators
+                        }
+                    }
+                },
+                yAxis: {title: {text: 'Stepper Position'}},
+                tooltip: {
+                    formatter: function () {
+                        return 'Frequency: ' + formatNumber(this.x.toFixed(0)) + ' MHz<br>' +
+                            'Stepper Position: ' + formatNumber(this.y);
+                    }
+                },
+                series: [
+                    {
+                        name: 'Detailed Data',
+                        type: 'scatter',
+                        data: detailed20mData,
+                        marker: {radius: 5},
+                        color: '#FF0000'
+                    },
+                    {
+                        name: 'Predicted Data',
+                        type: 'spline',
+                        data: predicted20mData,
+                        color: '#0000FF'
+                    }
+                ]
+            });
+        });
+    }
+
+    function saveAndUploadTablestoESP32() {
+        console.log("Clicked Upload....");
+
+        $.post('/saveAndUploadTablestoESP32')
+            .done(function () {
+                $('#saveAndUploadTablestoESP32').fadeIn().delay(5000).fadeOut(); // Show toast on success
+            })
+            .fail(function (jqXHR, textStatus, errorThrown) {
+                console.error("Error saving and uploading to ESP32:", textStatus, errorThrown);
+                // Show an error toast message
+                $('#errorToast').text("Failed to reach the server. Please try again later.").fadeIn().delay(5000).fadeOut();
+            });
+    }
+
+    let intervalId = setInterval(getCompletionMessageStatus, 900);  // used in getCompletionMessageStatus()
+
+    function getCompletionMessageStatus() {
+        fetch('/getCompletionMessageStatus', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.completion_message !== "") {
+                    console.log('Completion message:', data.completion_message);
+
+                    // Check if the completion message includes the word "Failure"
+                    if (data.completion_message.includes("Failed")) {
+                        // Show the completion message in a failure toast
+                        $('#CompletionToastFailure').text(data.completion_message).fadeIn().delay(5000).fadeOut();
+                    } else {
+                        // Show the completion message in a success toast
+                        $('#CompletionToastSuccess').text(data.completion_message).fadeIn().delay(5000).fadeOut();
+                    }
+                    // Scroll back up after 10 seconds
+                    setTimeout(() => {
+                        window.scrollTo({
+                            top: 0,  // Scroll back to the top
+                            behavior: 'smooth'
+                        });
+                    }, 10000);  // 10000 milliseconds = 10 seconds
+
+                    // Pause the interval for 3 seconds
+                    clearInterval(intervalId);
+                    setTimeout(() => {
+                        intervalId = setInterval(getCompletionMessageStatus, 1000); // Restart the interval after 3 seconds
+                    }, 3000);  // Delay for 3 seconds
+                }
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+    }
+
+
+    // Call the function when the page loads
+    $(document).ready(function () {
+        $('.simple-toast').hide();  // Hide toasts initially
+        $('.simple-toast-warning').hide();  // Hide toasts initially
+
+        fetchDataAndRenderCharts();
+        $('#ButtonSaveTableToSlave').click(saveAndUploadTablestoESP32);
+    });
+</script>
+</body>
+</html>

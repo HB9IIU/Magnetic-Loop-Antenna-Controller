@@ -1768,9 +1768,11 @@ def record_resonance_frequency():
 ser = None  # Initialize ser as None to avoid issues in the exception handler
 
 if __name__ == '__main__':
-
+    print ("Hello")
     #uploadNewLookUpTableToESP32()
-    #sys.exit()
+    set_new_position_for_current_vfo_frequency(14190000)
+
+    sys.exit()
     try:
         serial_port = get_vna_port()  # Auto-detect NanoVNA port
         ser = initialize_serial(serial_port)  # Initialize the connection
