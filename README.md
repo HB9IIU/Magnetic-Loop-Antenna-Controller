@@ -83,25 +83,18 @@ This project also helped me deepen my understanding of ESP32 coding, particularl
 If you have a project idea in mind and aren’t sure where to start, feel free to reach out—I’d be glad to help brainstorm or provide some guidance!
 
 ---
+## Acknowledgments
+
+A heartfelt thank you to the authors and contributors of the libraries used in this project. Your work has made it possible to bring this project to life. Each library brings a unique capability, and we deeply appreciate the time, effort, and expertise invested in creating and maintaining them. 🙏
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
+## Author
+
+**HB9IIU - Daniel**  
+*Amateur Radio Enthusiast & Developer*  
+Contact: daniel at hb9iiu.com
 
 
-
-
-
-
-
-
-
-
--------------------------------------------------
-
-
-
-
-
-
-In the README, include:
-A brief description of the Magnetic Loop Antenna Controller project.
-An explanation of each folder’s purpose (e.g., what MLA-Controller-Master and MLA-Controller-Slave do).
-Basic setup and usage instructions.
-Any dependencies or hardware requirements.
