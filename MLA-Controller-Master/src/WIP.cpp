@@ -46,11 +46,9 @@ const int PTTdurationForSWRmeterInMs = 1000;
 // ########################################################################################
 
 #include <Arduino.h>
-#include <TFT_eSPI.h>          // Include the TFT_eSPI library
-    TFT_eSPI tft = TFT_eSPI(); // Initialize the TFT display
-// git test
-//--------------------------------------------------------------------------------------------------------
-//  a enlever (après contrôle)
+#include <TFT_eSPI.h>      // Include the TFT_eSPI library
+TFT_eSPI tft = TFT_eSPI(); // Initialize the TFT display
+
 uint16_t initialRFPower;
 
 // Define timing constants
@@ -308,6 +306,9 @@ void setup()
 {
     Serial.begin(115200); // Start Serial communication for debugging
     Serial.println("HB9IIU MLA Controller Starting");
+    pinMode(TFT_BLP, OUTPUT);    // Configure the backlight pin
+    digitalWrite(TFT_BLP, HIGH); // Turn on the backlight
+
     tft.begin();               // Initialize the TFT display
     tft.fillScreen(TFT_BLACK); // Set background to black
                                // tft.fillScreen(TFT_WHITE); // Set background to black
