@@ -14,6 +14,11 @@ The MASTER device retrieves the VFO (Variable Frequency Oscillator) frequency fr
 - **Seamless Tuning**: Automatically adjusts the MLA tuning capacitor based on the VFO frequency retrieved from the transceiver.
 - **Real-Time Feedback**: Displays system status, tuning progress, and SWR readings on the screen.
 
+## Important Notes
+
+- **Included Libraries**: All required libraries are already included in the `lib` folder. There is no need to install additional libraries.
+- **Recommended IDE**: This code is designed to be compiled using [PlatformIO](https://platformio.org/) in Visual Studio Code. PlatformIO offers an efficient and streamlined environment for ESP32 development.
+
 ## Documentation
 
 For more information about the system's functionality, initial setup, and additional features, please refer to the [main repository README](https://github.com/HB9IIU/Magnetic-Loop-Antenna-Controller/tree/main).
