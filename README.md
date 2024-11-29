@@ -9,8 +9,8 @@ For those not familiar with the term, "high Q" refers to the quality of the ante
 ---
 
 ## Project Overview
-![MLA Controller Image](https://github.com/HB9IIU/Magnetic-Loop-Antenna-Controller/blob/main/MLA-Controller-Master/doc/Diagrams/diag.png)
 This project is a fully automated tuning system for a Magnetic Loop Antenna (MLA), designed to simplify and enhance the tuning experience, especially for high-Q antennas. The setup consists of a **Master** ESP32 microcontroller that serves as the main controller, paired with a **Slave** ESP32 that manages the motor controlling the antenna's tuning capacitor.
+![MLA Controller Image](https://github.com/HB9IIU/Magnetic-Loop-Antenna-Controller/blob/main/MLA-Controller-Master/doc/Diagrams/diag.png)
 
 ### How It Works
 
