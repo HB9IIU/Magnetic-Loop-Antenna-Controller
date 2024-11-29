@@ -18,19 +18,29 @@ The SLAVE device communicates wirelessly with the MASTER ESP32 over an ad hoc 2.
 
 The **DM542 stepper motor driver** is configured with a **microstep resolution of 64 microsteps per step**, achieved by setting **SW6 = OFF** and **SW7 = OFF**. With a standard 1.8° stepper motor, this results in:
 
-\[
-	ext{Steps per Revolution} = 64 	imes 200 = 12,800 \, 	ext{steps/revolution}.
-\]
+```
+Steps per Revolution = Microsteps per Step × Steps per Revolution (1.8° motor)
+                     = 64 × 200
+                     = 12,800 steps/revolution
+```
 
 The stepper motor is paired with a **1:10 gear reduction**, which multiplies the precision of the motor. The combination of microstepping and gear reduction results in a **final resolution** of:
 
-\[
-	ext{Final Resolution} = 12,800 \, 	ext{steps/revolution} 	imes 10 = 128,000 \, 	ext{steps/revolution}.
-\]
+```
+Final Resolution = Steps per Revolution × Gear Ratio
+                 = 12,800 × 10
+                 = 128,000 steps/revolution
+```
 
 ### Example: Moving from 7 MHz to 14 MHz
 
-In practical terms, moving the tuning capacitor from **7 MHz to 14 MHz** requires approximately **1,000,000 steps**, which translates to about **7.81 turns** of the capacitor.
+In practical terms, moving the tuning capacitor from **7 MHz to 14 MHz** requires approximately **1,000,000 steps**, which translates to:
+
+```
+Number of Turns = Total Steps ÷ Final Resolution
+                = 1,000,000 ÷ 128,000
+                ≈ 7.81 turns
+```
 
 ---
 
