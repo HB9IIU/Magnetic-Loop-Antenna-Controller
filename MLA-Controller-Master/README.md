@@ -7,7 +7,7 @@ The MASTER is equipped with a TFT touchscreen interface, providing users with a 
 
 The MASTER device communicates with a SLAVE ESP32 microcontroller, which manages a stepper motor via a microstepping driver. 
 This setup enables precise control of mechanical movements in various applications, such as antenna positioning for radio transceivers.
-![MLA Controller Image](doc/Diagrams/diag.png)
+![MLA Controller Image](https://github.com/HB9IIU/Magnetic-Loop-Antenna-Controller/blob/main/MLA-Controller-Master/doc/Diagrams/diag.png)
 ## Features
 
 - **TFT Touchscreen Interface**: Interactive GUI for user input and feedback.
