@@ -66,7 +66,7 @@ Additionally, there’s a ‘Set’ button that brings up a virtual keyboard for
 
 ## Open Source
 
-If you’re interested, you can build your own system—everything is open source and available on GitHub. This is actually my first time using GitHub, so this project has also been a great opportunity to learn something new.
+If you’re interested, you can build your own system—everything is open source and available here. This is actually my first time using GitHub, so this project has also been a great opportunity to learn something new.
 
 That said, I have limited time available, so I may not be able to provide quick fixes or improvements on the fly. I appreciate your understanding and hope you find the project useful!
 
