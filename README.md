@@ -14,7 +14,8 @@ This project is a fully automated tuning system for a Magnetic Loop Antenna (MLA
 
 ### How It Works
 
-1. **Master ESP32 with TFT Display**: The Master ESP32, equipped with a TFT touchscreen display, serves as the primary interface for the user. It retrieves the VFO (Variable Frequency Oscillator) frequency from an Icom IC-705 transceiver via a Bluetooth connection, allowing for automatic adjustments based on the transceiver’s operating frequency. For other transceiver models (such as Yaesu, Elecraft, Kenwood), a USB or serial connection is planned.
+1. **Master ESP32 with TFT Display**: 
+The Master ESP32, equipped with a TFT touchscreen display, serves as the primary interface for the user. It retrieves the VFO (Variable Frequency Oscillator) frequency from an Icom IC-705 transceiver via a Bluetooth connection, allowing for automatic adjustments based on the transceiver’s operating frequency. For other transceiver models (such as Yaesu, Elecraft, Kenwood), a USB or serial connection is planned.
 
 2. **2.4 GHz Network Communication**: The Master ESP32 communicates wirelessly with the Slave ESP32 over an ad hoc 2.4 GHz network. This approach was chosen specifically to avoid reliance on a router, making the setup ideal for field operations where access to network infrastructure may be limited.
 
