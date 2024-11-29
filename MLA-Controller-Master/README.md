@@ -1,34 +1,19 @@
-# MLA-Controller-Slave
 
-This repository contains the code for the **ESP32 microcontroller** functioning as the **MASTER** device in a radio control system. 
-The MASTER is equipped with a TFT touchscreen interface, providing users with a graphical interface to control and monitor the system's operations.
+# MLA-Controller-Master
+
+This repository contains the code for the **ESP32 microcontroller** functioning as the **MASTER** device in the Magnetic Loop Antenna (MLA) Controller system. The MASTER is equipped with a TFT touchscreen interface, providing users with a graphical interface to control and monitor the system's operations.
 
 ## Overview
 
-The MASTER device communicates with a SLAVE ESP32 microcontroller, which manages a stepper motor via a microstepping driver. 
-This setup enables precise control of mechanical movements in various applications, such as antenna positioning for radio transceivers.
-![MLA Controller Image](https://github.com/HB9IIU/Magnetic-Loop-Antenna-Controller/blob/main/MLA-Controller-Master/doc/Diagrams/diag.png)
-## Features
+The MASTER device retrieves the VFO (Variable Frequency Oscillator) frequency from a compatible transceiver (e.g., IC-705 via Bluetooth) and communicates wirelessly with the SLAVE ESP32 device to adjust the tuning capacitor. The graphical interface simplifies interaction, allowing precise control and real-time feedback during operation.
 
-- **TFT Touchscreen Interface**: Interactive GUI for user input and feedback.
-- **Bluetooth Communication**: Connects with transceivers like the Icom IC 705.
-- **Ad Hoc 2.4 GHz Network**: Facilitates wireless communication between MASTER and SLAVE devices.
-- **Stepper Motor Control**: Implements microstepping for smooth and precise movements.
+## Key Features
 
-## Requirements
+- **TFT Touchscreen**: Provides an intuitive user interface for controlling and monitoring the system.
+- **Wireless Communication**: Communicates with the SLAVE ESP32 over an ad hoc 2.4 GHz network for field portability.
+- **Seamless Tuning**: Automatically adjusts the MLA tuning capacitor based on the VFO frequency retrieved from the transceiver.
+- **Real-Time Feedback**: Displays system status, tuning progress, and SWR readings on the screen.
 
-- ESP32 Microcontroller
-- TFT Touchscreen Display
-- Microstepping Driver
-- Stepper Motor with Reduction Gear
-- Required Libraries:
-  - [TFT_eSPI](https://github.com/Bodmer/TFT_eSPI)
-  - [WiFi](https://github.com/espressif/arduino-esp32/tree/master/libraries/WiFi)
+## Documentation
 
-## Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/your-repo-name.git
-
-
+For more information about the system's functionality, initial setup, and additional features, please refer to the [main repository README](https://github.com/HB9IIU/Magnetic-Loop-Antenna-Controller/tree/main).
