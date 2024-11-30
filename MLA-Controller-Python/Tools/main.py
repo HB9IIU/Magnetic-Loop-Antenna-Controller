@@ -18,9 +18,17 @@ from scipy.signal import savgol_filter
 from scipy.interpolate import CubicSpline
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.linear_model import LinearRegression
-import webbrowser  # Import the webbrowser module
+import webbrowser
 
-
+'''
+This works only with this firmware
+https://github.com/qrp73/NanoVNA-Q/releases/tag/0.4.4
+NanoVNA-Q is firmware for NanoVNA vector network analyzer.
+Original NanoVNA firmware and hardware was developed by @edy555 and it's source code can be found here: https://github.com/ttrftech/NanoVNA
+Later, @hugen79 introduced a new PCB (NanoVNA-H) and improvements for firmware and device become very popular. 
+@hugen79 project can be found here: https://github.com/hugen79/NanoVNA-H
+NanoVNA-Q is based on @edy555 code, includes improvements from @hugen79 and is targeted for NanoVNA-H hardware.
+'''
 # For Camera Control
 # http://192.168.4.11/control?var=contrast&val=2
 # http://192.168.4.11/control?var=saturation&val=2
@@ -52,15 +60,6 @@ global ws_frequency_array, ws_s11_db_array, ws_swr_array, ws_min_s11_db, ws_min_
 global ns_frequency_array, ns_s11_db_array, ns_swr_array, ns_min_s11_db, ns_min_swr, ns_freq_at_min_s11, ns_freq_at_min_swr
 ns_frequency_array=[]
 
-'''
-This works only with this firmware
-https://github.com/qrp73/NanoVNA-Q/releases/tag/0.4.4
-NanoVNA-Q is firmware for NanoVNA vector network analyzer.
-Original NanoVNA firmware and hardware was developed by @edy555 and it's source code can be found here: https://github.com/ttrftech/NanoVNA
-Later, @hugen79 introduced a new PCB (NanoVNA-H) and improvements for firmware and device become very popular. 
-@hugen79 project can be found here: https://github.com/hugen79/NanoVNA-H
-NanoVNA-Q is based on @edy555 code, includes improvements from @hugen79 and is targeted for NanoVNA-H hardware.
-'''
 # NanoVNA USB IDs
 VNA_VID = 0x0483  # Example VID for STM32-based devices (NanoVNA typically uses this)
 VNA_PID = 0x5740  # NanoVNA PID
@@ -1673,10 +1672,6 @@ def continuous_sweeping_thread():
             pass
 
 
-
-
-
-
 # --------------------------------------------------
 # Plotting Functions For De-Bugging
 # --------------------------------------------------
@@ -1768,11 +1763,9 @@ def record_resonance_frequency():
 ser = None  # Initialize ser as None to avoid issues in the exception handler
 
 if __name__ == '__main__':
-    print ("Hello")
-    #uploadNewLookUpTableToESP32()
-    set_new_position_for_current_vfo_frequency(14190000)
 
-    sys.exit()
+    #uploadNewLookUpTableToESP32()
+    #sys.exit()
     try:
         serial_port = get_vna_port()  # Auto-detect NanoVNA port
         ser = initialize_serial(serial_port)  # Initialize the connection
@@ -1811,14 +1804,14 @@ if __name__ == '__main__':
 
     # Function to run Flask app
     def run_flask():
-        app.run(host='127.0.0.1', use_reloader=False, port=5558)
+        app.run(host='127.0.0.1', use_reloader=False, port=5555)
 
     # Start Flask server in a separate thread
     flask_thread = threading.Thread(target=run_flask)
     flask_thread.start()
 
     # Automatically open the web page in the default browser
-    webbrowser.open("http://127.0.0.1:5558")
+    webbrowser.open("http://127.0.0.1:5555")
 
     # Wait for the Flask server thread to complete
     flask_thread.join()

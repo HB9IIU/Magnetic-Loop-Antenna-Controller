@@ -20,37 +20,34 @@ from sklearn.preprocessing import PolynomialFeatures
 from sklearn.linear_model import LinearRegression
 import webbrowser  # Import the webbrowser module
 
-
 # For Camera Control
 # http://192.168.4.11/control?var=contrast&val=2
 # http://192.168.4.11/control?var=saturation&val=2
 
 
 global sweepNumber
-sweepNumber=0
+sweepNumber = 0
 global characterisationRoutineRunning
-characterisationRoutineRunning=False
+characterisationRoutineRunning = False
 
 global full_path_characteritation_table
-full_path_characteritation_table=[]
+full_path_characteritation_table = []
 global characterisation_table_40m
-characterisation_table_40m=[]
+characterisation_table_40m = []
 global characterisation_table_20m
-characterisation_table_20m=[]
+characterisation_table_20m = []
 global Characterisation_40m_Plot_title
-Characterisation_40m_Plot_title=""
+Characterisation_40m_Plot_title = ""
 global Characterisation_20m_Plot_title
-Characterisation_20m_Plot_title=""
+Characterisation_20m_Plot_title = ""
 global Characterisation_Initial_Wide_Band_Plot_title
-Characterisation_Initial_Wide_Band_Plot_title=""
-
-
+Characterisation_Initial_Wide_Band_Plot_title = ""
 
 global completion_message
-completion_message=""
+completion_message = ""
 global ws_frequency_array, ws_s11_db_array, ws_swr_array, ws_min_s11_db, ws_min_swr, ws_freq_at_min_s11, ws_freq_at_min_swr
 global ns_frequency_array, ns_s11_db_array, ns_swr_array, ns_min_s11_db, ns_min_swr, ns_freq_at_min_s11, ns_freq_at_min_swr
-ns_frequency_array=[]
+ns_frequency_array = []
 
 '''
 This works only with this firmware
@@ -83,26 +80,30 @@ detailed_40m_characterisation_file = os.path.join(charaterisations_dir, 'detaile
 detailed_20m_characterisation_file = os.path.join(charaterisations_dir, 'detailed_20m_characterisation.csv')
 predicted_40m_csv_file = os.path.join(charaterisations_dir, 'predicted_40m_csv_file.csv')
 predicted_20m_csv_file = os.path.join(charaterisations_dir, 'predicted_20m_csv_file.csv')
-lookupTableForESP32=os.path.join(charaterisations_dir, 'lookupTableFoerESP32.txt')
-longtime_recording=os.path.join('long_time_recording.csv')
+lookupTableForESP32 = os.path.join(charaterisations_dir, 'lookupTableFoerESP32.txt')
+longtime_recording = os.path.join('long_time_recording.csv')
 
 # --------------------------------------------------
 # Flask Routes
 # --------------------------------------------------
 app = Flask(__name__)
 
+
 @app.route('/')
 def index():
     return render_template('index.html')
+
 
 @app.route('/characteristics.html')
 def characteristics():
     return render_template('characteristics.html')
 
+
 @app.route('/checkCharacterisationStatus', methods=['GET'])
 def check_characterisation_status():
     # Return the status of the characterization routine
     return jsonify({'characterisationRoutineRunning': characterisationRoutineRunning}), 200
+
 
 @app.route('/wide_sweep_data')
 def wide_sweep_data():
@@ -114,17 +115,19 @@ def wide_sweep_data():
     }
     return jsonify(data)
 
+
 @app.route('/checkConnectionWithESP32')
 def checkConnectionWithESP32():
-        try:
-            response_from_ESP32 = requests.get(f"http://{ESP32_IP_ADRESS}/health", timeout=2)
-            if response_from_ESP32.text=="OK":
-                response="OK"
-            else:
-                response = "NOT OK"
-        except:
+    try:
+        response_from_ESP32 = requests.get(f"http://{ESP32_IP_ADRESS}/health", timeout=2)
+        if response_from_ESP32.text == "OK":
+            response = "OK"
+        else:
             response = "NOT OK"
-        return jsonify(response)
+    except:
+        response = "NOT OK"
+    return jsonify(response)
+
 
 @app.route('/zoom_data')
 def zoom_data():
@@ -138,18 +141,21 @@ def zoom_data():
     }
     return jsonify(data)
 
+
 @app.route('/returnCurrentStepperPosition')
 def return_current_stepper_position():
     return jsonify(get_current_stepper_position_from_ESP32())
 
+
 @app.route('/setNewStepperPositionInSlave', methods=['POST'])
 def set_new_stepper_position_in_slave():
     position = request.form.get('position')
-    if (set_stepper_position_in_ESP32(int(position)))!=True:
+    if (set_stepper_position_in_ESP32(int(position))) != True:
         sys.exit()
 
     # For testing, just return the received position
     return jsonify({'received_position': position})
+
 
 @app.route('/moveSteppertoNewPosition', methods=['POST'])
 def moveSteppertoNewPosition():
@@ -160,39 +166,43 @@ def moveSteppertoNewPosition():
     print("Move duration:", move_duration)
     return jsonify({'steps_to_go': steps_to_go, 'move_duration': move_duration}), 200
 
+
 @app.route('/moveStepperBySteps', methods=['POST'])
 def moveStepperBySteps():
     steps = int(request.form.get('steps', type=int))
     print(f"Moving stepper by {steps} steps")
-    move_duration=move_stepper_by_steps(steps)
-    print ("returning move duration:",move_duration)
+    move_duration = move_stepper_by_steps(steps)
+    print("returning move duration:", move_duration)
     return jsonify({'status': 'success', 'move_duration': move_duration}), 200
+
 
 # Endpoint to start auto-characterization routine
 @app.route('/start40mAutoCharaterisationRoutine', methods=['POST'])
 def start40mAutoCharaterisationRoutine():
-    global characterisation_table_20m,characterisation_table_40m,full_path_characteritation_table
-    characterisation_table_40m=[]
-    characterisation_table_40m=[]
-    full_path_characteritation_table=[]
+    global characterisation_table_20m, characterisation_table_40m, full_path_characteritation_table
+    characterisation_table_40m = []
+    characterisation_table_40m = []
+    full_path_characteritation_table = []
     threading.Thread(target=Automatic_Characterisation_Thread_40m).start()
     return "ok", 200
 
+
 @app.route('/start20mAutoCharaterisationRoutine', methods=['POST'])
 def start20mAutoCharaterisationRoutine():
-    global characterisation_table_20m,characterisation_table_40m,full_path_characteritation_table
-    characterisation_table_40m=[]
-    characterisation_table_40m=[]
-    full_path_characteritation_table=[]
+    global characterisation_table_20m, characterisation_table_40m, full_path_characteritation_table
+    characterisation_table_40m = []
+    characterisation_table_40m = []
+    full_path_characteritation_table = []
     threading.Thread(target=Automatic_Characterisation_Thread_20m).start()
     return "ok", 200
 
+
 @app.route('/startFullPathAutoCharacterisation', methods=['POST'])
 def startFullPathAutoCharacterisation():
-    global characterisation_table_20m,characterisation_table_40m,full_path_characteritation_table
-    characterisation_table_40m=[]
-    characterisation_table_40m=[]
-    full_path_characteritation_table=[]
+    global characterisation_table_20m, characterisation_table_40m, full_path_characteritation_table
+    characterisation_table_40m = []
+    characterisation_table_40m = []
+    full_path_characteritation_table = []
     threading.Thread(target=Automatic_Characterisation_Thread_full_path).start()
     return "ok", 200
 
@@ -219,6 +229,7 @@ def get_characteristics():
 
     return jsonify(data)
 
+
 @app.route('/manual_test_frequency', methods=['POST'])
 def manual_test_frequency():
     try:
@@ -226,8 +237,9 @@ def manual_test_frequency():
         frequency = request.form.get('frequency')
         if frequency:
             logging.info(f"Received frequency: {frequency} MHz for manual testing.")
-            testing_frequency=float(frequency)*1e6
-            target_stepper_position_txt,estimated_duration_txt =set_new_position_for_current_vfo_frequency(testing_frequency)
+            testing_frequency = float(frequency) * 1e6
+            target_stepper_position_txt, estimated_duration_txt = set_new_position_for_current_vfo_frequency(
+                testing_frequency)
 
             return jsonify({
                 'estimated_duration': int(estimated_duration_txt),
@@ -243,24 +255,23 @@ def manual_test_frequency():
 
 @app.route('/get_full_Characterisation_Data', methods=['GET'])
 def get_full_Characterisation_Data():
-    characterisation_table_poly = generate_polynomial_fit(full_path_characteritation_table) #osolete
-    characterisation_table_cubic_spline=generate_Cubic_Spline_fit(full_path_characteritation_table)
+    characterisation_table_poly = generate_polynomial_fit(full_path_characteritation_table)  # osolete
+    characterisation_table_cubic_spline = generate_Cubic_Spline_fit(full_path_characteritation_table)
 
     # Convert NumPy types to native Python types
     safe_characterisation_table = convert_numpy_to_native(full_path_characteritation_table)
-    safe_characterisation_table_poly = convert_numpy_to_native(characterisation_table_poly) #osolete
+    safe_characterisation_table_poly = convert_numpy_to_native(characterisation_table_poly)  # osolete
     safe_characterisation_table_poly = convert_numpy_to_native(characterisation_table_cubic_spline)
 
-    #print (safe_characterisation_table_poly)
-    #print (characterisation_table_40m)
+    # print (safe_characterisation_table_poly)
+    # print (characterisation_table_40m)
     # Return the data as JSON
     return jsonify({
         'characterisation_table': safe_characterisation_table,
         'characterisation_table_poly': safe_characterisation_table_poly,
-        'samplePointColor': "#FF0000", # red
-        'plotTitle':    Characterisation_Initial_Wide_Band_Plot_title
+        'samplePointColor': "#FF0000",  # red
+        'plotTitle': Characterisation_Initial_Wide_Band_Plot_title
     })
-
 
 
 @app.route('/get_40m_Characterisation_Data', methods=['GET'])
@@ -269,14 +280,14 @@ def get_40m_Characterisation_Data():
     # Convert NumPy types to native Python types
     safe_characterisation_table = convert_numpy_to_native(characterisation_table_40m)
     safe_characterisation_table_poly = convert_numpy_to_native(characterisation_table_poly)
-    #print (safe_characterisation_table_poly)
-    #print (characterisation_table_40m)
+    # print (safe_characterisation_table_poly)
+    # print (characterisation_table_40m)
     # Return the data as JSON
     return jsonify({
         'characterisation_table': safe_characterisation_table,
         'characterisation_table_poly': safe_characterisation_table_poly,
-        'samplePointColor': "#FF0000", # red
-        'plotTitle':    Characterisation_40m_Plot_title
+        'samplePointColor': "#FF0000",  # red
+        'plotTitle': Characterisation_40m_Plot_title
     })
 
 
@@ -286,24 +297,25 @@ def get_20m_Characterisation_Data():
     # Convert NumPy types to native Python types
     safe_characterisation_table = convert_numpy_to_native(characterisation_table_20m)
     safe_characterisation_table_poly = convert_numpy_to_native(characterisation_table_poly)
-    #print (safe_characterisation_table)
-    #print (safe_characterisation_table_poly)
+    # print (safe_characterisation_table)
+    # print (safe_characterisation_table_poly)
     # Return the data as JSON
     return jsonify({
         'characterisation_table': safe_characterisation_table,
         'characterisation_table_poly': safe_characterisation_table_poly,
-        'samplePointColor': "#FF0000", # red
-                            'plotTitle':    Characterisation_20m_Plot_title
+        'samplePointColor': "#FF0000",  # red
+        'plotTitle': Characterisation_20m_Plot_title
 
     })
 
 
 @app.route('/saveAndUploadTablestoESP32', methods=['POST'])
 def saveAndUploadTablestoESP32():
-    result=merge_csv_files_to_csv(predicted_40m_csv_file, predicted_20m_csv_file, lookupTableForESP32, True, True)
+    result = merge_csv_files_to_csv(predicted_40m_csv_file, predicted_20m_csv_file, lookupTableForESP32, True, True)
     if result is not None:
         threading.Thread(target=uploadNewLookUpTableToESP32).start()
     return "ok", 200
+
 
 @app.route('/getCompletionMessageStatus', methods=['POST'])
 def getCompletionMessageStatus():
@@ -315,17 +327,19 @@ def getCompletionMessageStatus():
 # INFO FROM ESP
 def check_slave_AP_connection():
     print("Trying to connect to slave via WiFi network 'HB9IIU-MLA'")
-    connection_ok=False
+    connection_ok = False
     while not connection_ok:
         try:
             response = requests.get(f"http://{ESP32_IP_ADRESS}/health", timeout=2)
             if response.status_code == 200:
                 print(f"Connection to Slave on HB9IIU-MLA: {response.text}")
-                connection_ok=True
+                connection_ok = True
             else:
                 print(f"Unexpected response from SLAVE: {response.status_code}, {response.text}")
         except requests.exceptions.RequestException as e:
             print("Connection timeout. Please make sure you are connected to the WiFi network 'HB9IIU-MLA'.")
+
+
 def get_current_stepper_position_from_ESP32(retries=3, delay=2):
     """Fetches the current stepper position from the ESP32, retrying if needed."""
     for attempt in range(retries):
@@ -356,6 +370,8 @@ def get_current_stepper_position_from_ESP32(retries=3, delay=2):
     # If all attempts fail, return a default value or handle accordingly
     print(f"Failed to retrieve valid stepper position after {retries} attempts.")
     return -1  # Or another value that indicates an error
+
+
 def get_stepper_position_for_current_vfo_frequency(lookup_frequency):
     """
     Sends a command to retrieve the stepper position corresponding to a given frequency.
@@ -388,6 +404,8 @@ def get_stepper_position_for_current_vfo_frequency(lookup_frequency):
     except requests.exceptions.RequestException as e:
         print(f"An error occurred: {e}")
         return None
+
+
 def get_tuned_status_from_slave():
     """
     Sends the 'GetTunedStatusFromSlave' command to the ESP32 server to retrieve the
@@ -410,12 +428,14 @@ def get_tuned_status_from_slave():
     except requests.exceptions.RequestException as e:
         print(f"An error occurred: {e}")
         return None
+
+
 def get_lookup_table_from_ESP32():
     """
     Fetches the lookup table from the ESP32 server in chunks using a persistent session
     and returns it as a list of tuples. Each tuple contains a frequency and a corresponding stepper position.
     """
-    print ("Downloading Lookup table stored in ESP32, Please Wait")
+    print("Downloading Lookup table stored in ESP32, Please Wait")
 
     # Define the base URL for the lookup table endpoint
     url = f"http://{ESP32_IP_ADRESS}/getLookupTable"
@@ -438,7 +458,7 @@ def get_lookup_table_from_ESP32():
 
             # Check if the request was successful
             if response.status_code == 200:
-                #print(f"Chunk retrieved: {start_index} to {start_index + chunk_size}")
+                # print(f"Chunk retrieved: {start_index} to {start_index + chunk_size}")
 
                 # Parse the response text into lines
                 lookup_table = response.text
@@ -476,6 +496,7 @@ def get_lookup_table_from_ESP32():
 
     return table_data
 
+
 # COMMANDS TO ESP
 def set_stepper_position_in_ESP32(position):
     """
@@ -498,21 +519,23 @@ def set_stepper_position_in_ESP32(position):
             # Check if the request was successful
             if response.status_code == 200 and response.text == "Stepper position updated successfully":
                 print(f"Stepper position set to {position}")
-                time.sleep(.5) # to make sure action took place
+                time.sleep(.5)  # to make sure action took place
                 return True
             else:
                 print(f"Failed to set stepper position. Response: {response.text}")
-                print ({'status': 'error', 'message': f'Failed to set stepper position. Response: {response.text}'})
+                print({'status': 'error', 'message': f'Failed to set stepper position. Response: {response.text}'})
                 sys.exit()
         except requests.exceptions.RequestException as e:
             # Handle exceptions during the request
             print(f"An error occurred: {e}")
-            print( {'status': 'error', 'message': f'An error occurred: {e}'})
+            print({'status': 'error', 'message': f'An error occurred: {e}'})
             sys.exit()
 
     else:
         print('Invalid position provided')
         return {'status': 'error', 'message': 'Invalid position provided'}
+
+
 def move_stepper_by_steps(number_of_steps):
     """
     Sends the 'moveBySteps' command to the ESP32 server to move the stepper motor
@@ -533,8 +556,8 @@ def move_stepper_by_steps(number_of_steps):
         response = session.post(url, data=data)
         if response.status_code == 200:
             target_stepper_position_txt, estimated_duration_txt = response.text.split(',')
-            estimated_duration=int(estimated_duration_txt)
-            print ("Moving by", number_of_steps, "steps")
+            estimated_duration = int(estimated_duration_txt)
+            print("Moving by", number_of_steps, "steps")
             return estimated_duration
         else:
             print(f"Failed to move by steps. Status code: {response.status_code}")
@@ -543,6 +566,8 @@ def move_stepper_by_steps(number_of_steps):
     except requests.exceptions.RequestException as e:
         print(f"An error occurred: {e}")
         return None
+
+
 def set_tuned_frequency_to_preference(lookup_frequency):
     """
     Sends a command to set the tuned frequency on the ESP32 and adjust the stepper position accordingly.
@@ -562,7 +587,6 @@ def set_tuned_frequency_to_preference(lookup_frequency):
     try:
         response = session.post(url, data=data, timeout=20)  # Timeout set to 10 seconds
 
-
         if response.status_code == 200:
             position_for_given_frequency, tuned_frequency = response.text.split(',')
             return {
@@ -576,6 +600,8 @@ def set_tuned_frequency_to_preference(lookup_frequency):
     except requests.exceptions.RequestException as e:
         print(f"An error occurred: {e}")
         return None
+
+
 def set_new_position_for_current_vfo_frequency(target_frequency):
     """
     Sends a command to set a new stepper position for the given frequency and estimates the movement duration.
@@ -597,7 +623,7 @@ def set_new_position_for_current_vfo_frequency(target_frequency):
 
         if response.status_code == 200:
             target_stepper_position_txt, estimated_duration_txt = response.text.split(',')
-            return int(target_stepper_position_txt),int(estimated_duration_txt)
+            return int(target_stepper_position_txt), int(estimated_duration_txt)
 
         else:
             print(f"Failed to set new position. Status code: {response.status_code}")
@@ -606,13 +632,15 @@ def set_new_position_for_current_vfo_frequency(target_frequency):
     except requests.exceptions.RequestException as e:
         print(f"An error occurred: {e}")
         return None
+
+
 def uploadNewLookUpTableToESP32():
     """
     Uploads a new lookup table to the ESP32 server using a persistent session.
     Reads the lookup_table.csv file, formats it, and sends it via a POST request.
     """
     global completion_message
-    print ("Uploding Lookup table, please wait")
+    print("Uploding Lookup table, please wait")
     # Define the base URL for the lookup table endpoint
     url = f"http://{ESP32_IP_ADRESS}/uploadLookupTable"
     # Read the lookup_table.csv file into a DataFrame
@@ -637,21 +665,21 @@ def uploadNewLookUpTableToESP32():
 
         # Check if the request was successful
         if response.status_code == 200:
-            completion_message="Lookup table successfully uploaded to ESP32 Controller"
+            completion_message = "Lookup table successfully uploaded to ESP32 Controller"
             print(completion_message)
             time.sleep(1)
-            completion_message=""
+            completion_message = ""
         else:
             print(f"Failed to upload lookup table, status code: {response.status_code}")
             completion_message = "Lookup table to ESP32 Controller Failed"
             print(completion_message)
             time.sleep(1)
-            completion_message=""
+            completion_message = ""
 
     except FileNotFoundError:
-        print("The file "+ lookupTableForESP32 +" was not found.")
+        print("The file " + lookupTableForESP32 + " was not found.")
     except pd.errors.EmptyDataError:
-        print(lookupTableForESP32+" file is empty.")
+        print(lookupTableForESP32 + " file is empty.")
     except requests.exceptions.RequestException as e:
         print(f"An error occurred: {e}")
         completion_message = "Lookup table to ESP32 Controller Failed. Check If Controller is ON"
@@ -659,34 +687,35 @@ def uploadNewLookUpTableToESP32():
         time.sleep(1)
         completion_message = ""
 
+
 # RELATED TO CHARACTERISATION
 def Automatic_Characterisation_Thread_40m():
     global characterisationRoutineRunning
     global completion_message
-    characterisationRoutineRunning=True
+    characterisationRoutineRunning = True
     global characterisation_table_40m
     global Characterisation_40m_Plot_title
     pos1 = stepper_pos_from_csv_data_cubic_spline(6990000)
     pos2 = stepper_pos_from_csv_data_cubic_spline(7350000)
-    #pos1 = stepper_pos_from_csv_data_poly_model(6990000)  # cubic spline is much better
-    #pos2 = stepper_pos_from_csv_data_poly_model(7350000)
+    # pos1 = stepper_pos_from_csv_data_poly_model(6990000)  # cubic spline is much better
+    # pos2 = stepper_pos_from_csv_data_poly_model(7350000)
     total_steps_pos1_to_pos2 = pos2 - pos1
     n_measures_for_range = 15
     increment = int(total_steps_pos1_to_pos2 / n_measures_for_range)
     pos = pos1
-    forward_pos_list=[]
+    forward_pos_list = []
 
     while pos < pos2:
         forward_pos_list.append(pos)
         pos = pos + increment
     backward_pos_list = forward_pos_list[::-1]  # Invert (mirror) the list
     # Add half increment to each element of forward list
-    backward_pos_list = [item + int(increment/2) for item in forward_pos_list]
+    backward_pos_list = [item + int(increment / 2) for item in forward_pos_list]
     # Remove the last item
     backward_pos_list.pop()
     # Reversing the list
     backward_pos_list.reverse()
-    total_samples=len(forward_pos_list)+len(backward_pos_list)
+    total_samples = len(forward_pos_list) + len(backward_pos_list)
 
     characterisation_table_40m = []
     sample_counter = 0
@@ -695,23 +724,7 @@ def Automatic_Characterisation_Thread_40m():
         current_stepper_position = get_current_stepper_position_from_ESP32()
         steps_to_go = position - current_stepper_position
         estimated_movement_duration = move_stepper_by_steps(steps_to_go)
-        print("Moving to pos:", position, " (", steps_to_go,"steps to go)")
-        time.sleep(estimated_movement_duration / 1000)  # wait for the movement to complete
-        lastSweepNumber = sweepNumber
-        while sweepNumber < lastSweepNumber + 1:  # to be sure to have a 'fresh' sweep
-            print("Waiting for sweep to complete")
-            time.sleep(1)
-        current_stepper_position = get_current_stepper_position_from_ESP32()
-        characterisation_table_40m.append((current_stepper_position, latest_zoomed_resonance_frequency))
-        sample_counter=sample_counter+1
-        frequ_for_title = str(int(latest_zoomed_resonance_frequency / 1e3) / 1000)
-        Characterisation_40m_Plot_title = "40m Characterisation Plot (Forward Mode - Sample " + str(sample_counter) + "/" + str(
-            total_samples) + " @ " + frequ_for_title + " MHz)"    # Moving backwards
-    for position in backward_pos_list:
-        current_stepper_position = get_current_stepper_position_from_ESP32()
-        steps_to_go = position - current_stepper_position
-        estimated_movement_duration = move_stepper_by_steps(steps_to_go)
-        print("Moving to pos:", position, " (", steps_to_go,"steps to go)")
+        print("Moving to pos:", position, " (", steps_to_go, "steps to go)")
         time.sleep(estimated_movement_duration / 1000)  # wait for the movement to complete
         lastSweepNumber = sweepNumber
         while sweepNumber < lastSweepNumber + 1:  # to be sure to have a 'fresh' sweep
@@ -720,9 +733,27 @@ def Automatic_Characterisation_Thread_40m():
         current_stepper_position = get_current_stepper_position_from_ESP32()
         characterisation_table_40m.append((current_stepper_position, latest_zoomed_resonance_frequency))
         sample_counter = sample_counter + 1
-        frequ_for_title=str(int(latest_zoomed_resonance_frequency/1e3)/1000)
-        Characterisation_40m_Plot_title = "40m Characterisation Plot (Reverse Mode - Sample " + str(sample_counter) + "/" + str(
-        total_samples) + " @ " +frequ_for_title+" MHz)"
+        frequ_for_title = str(int(latest_zoomed_resonance_frequency / 1e3) / 1000)
+        Characterisation_40m_Plot_title = "40m Characterisation Plot (Forward Mode - Sample " + str(
+            sample_counter) + "/" + str(
+            total_samples) + " @ " + frequ_for_title + " MHz)"  # Moving backwards
+    for position in backward_pos_list:
+        current_stepper_position = get_current_stepper_position_from_ESP32()
+        steps_to_go = position - current_stepper_position
+        estimated_movement_duration = move_stepper_by_steps(steps_to_go)
+        print("Moving to pos:", position, " (", steps_to_go, "steps to go)")
+        time.sleep(estimated_movement_duration / 1000)  # wait for the movement to complete
+        lastSweepNumber = sweepNumber
+        while sweepNumber < lastSweepNumber + 1:  # to be sure to have a 'fresh' sweep
+            print("Waiting for sweep to complete")
+            time.sleep(1)
+        current_stepper_position = get_current_stepper_position_from_ESP32()
+        characterisation_table_40m.append((current_stepper_position, latest_zoomed_resonance_frequency))
+        sample_counter = sample_counter + 1
+        frequ_for_title = str(int(latest_zoomed_resonance_frequency / 1e3) / 1000)
+        Characterisation_40m_Plot_title = "40m Characterisation Plot (Reverse Mode - Sample " + str(
+            sample_counter) + "/" + str(
+            total_samples) + " @ " + frequ_for_title + " MHz)"
     Characterisation_40m_Plot_title = "40m Characterisation Plot (" + str(sample_counter) + "samples)"
 
     with open(detailed_40m_characterisation_file, mode='w', newline='') as file:
@@ -731,14 +762,16 @@ def Automatic_Characterisation_Thread_40m():
         writer.writerows(characterisation_table_40m)
     create_lookup_table_poly(detailed_40m_characterisation_file, predicted_40m_csv_file, 5000)
 
-    characterisationRoutineRunning=False
-    completion_message=("40 meters Characterisation Completed")
+    characterisationRoutineRunning = False
+    completion_message = ("40 meters Characterisation Completed")
     time.sleep(1)
-    completion_message=("")
+    completion_message = ("")
+
+
 def Automatic_Characterisation_Thread_20m():
     global characterisationRoutineRunning
     global completion_message
-    characterisationRoutineRunning=True
+    characterisationRoutineRunning = True
     global characterisation_table_20m
     global Characterisation_20m_Plot_title
 
@@ -748,14 +781,14 @@ def Automatic_Characterisation_Thread_20m():
     n_measures_for_range = 15
     increment = int(total_steps_pos1_to_pos2 / n_measures_for_range)
     pos = pos1
-    forward_pos_list=[]
+    forward_pos_list = []
 
     # Generating list of positions
     while pos < pos2:
         forward_pos_list.append(pos)
         pos = pos + increment
     # Add half increment to each element of forward list
-    backward_pos_list = [item + int(increment/2) for item in forward_pos_list]
+    backward_pos_list = [item + int(increment / 2) for item in forward_pos_list]
     # Remove the last item
     backward_pos_list.pop()
     # Reversing the list
@@ -768,7 +801,7 @@ def Automatic_Characterisation_Thread_20m():
         current_stepper_position = get_current_stepper_position_from_ESP32()
         steps_to_go = position - current_stepper_position
         estimated_movement_duration = move_stepper_by_steps(steps_to_go)
-        print("Moving to pos:", position, " (", steps_to_go,"steps to go)")
+        print("Moving to pos:", position, " (", steps_to_go, "steps to go)")
         time.sleep(estimated_movement_duration / 1000)  # wait for the movement to complete
         lastSweepNumber = sweepNumber
         while sweepNumber < lastSweepNumber + 1:  # to be sure to have a 'fresh' sweep
@@ -786,7 +819,7 @@ def Automatic_Characterisation_Thread_20m():
         current_stepper_position = get_current_stepper_position_from_ESP32()
         steps_to_go = position - current_stepper_position
         estimated_movement_duration = move_stepper_by_steps(steps_to_go)
-        print("Moving to pos:", position, " (", steps_to_go,"steps to go)")
+        print("Moving to pos:", position, " (", steps_to_go, "steps to go)")
         time.sleep(estimated_movement_duration / 1000)  # wait for the movement to complete
         lastSweepNumber = sweepNumber
         while sweepNumber < lastSweepNumber + 1:  # to be sure to have a 'fresh' sweep
@@ -801,20 +834,21 @@ def Automatic_Characterisation_Thread_20m():
             total_samples) + " @ " + frequ_for_title + " MHz)"
     Characterisation_20m_Plot_title = "20m Characterisation Plot (" + str(sample_counter) + "samples)"
 
-
     with open(detailed_20m_characterisation_file, mode='w', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerow(["Stepper Position", "Characterisation Frequency"])  # Header
-            writer.writerows(characterisation_table_20m)
+        writer = csv.writer(file)
+        writer.writerow(["Stepper Position", "Characterisation Frequency"])  # Header
+        writer.writerows(characterisation_table_20m)
     create_lookup_table_poly(detailed_20m_characterisation_file, predicted_20m_csv_file, 5000)
-    characterisationRoutineRunning=False
-    completion_message=("20 meters Characterisation Completed")
+    characterisationRoutineRunning = False
+    completion_message = ("20 meters Characterisation Completed")
     time.sleep(1)
-    completion_message=("")
+    completion_message = ("")
+
+
 def Automatic_Characterisation_Thread_full_path():
     global characterisationRoutineRunning
     global completion_message
-    characterisationRoutineRunning=True
+    characterisationRoutineRunning = True
     global Characterisation_Initial_Wide_Band_Plot_title
     # we first need to move before 7 Mhz
     lastSweepNumber = sweepNumber
@@ -822,7 +856,7 @@ def Automatic_Characterisation_Thread_full_path():
         print("waiting for sweep to complete")
         time.sleep(1)
     set_stepper_position_in_ESP32(999999)  # arbitrary but large enough
-    while latest_zoomed_resonance_frequency>6_900_000:
+    while latest_zoomed_resonance_frequency > 6_900_000:
         estimated_movement_duration = move_stepper_by_steps(-20000)
         time.sleep(estimated_movement_duration / 1000)  # wait for the movement to complete
         lastSweepNumber = sweepNumber
@@ -841,7 +875,7 @@ def Automatic_Characterisation_Thread_full_path():
     charaterisation_stepper_position = get_current_stepper_position_from_ESP32()
     full_path_characteritation_table.append((charaterisation_stepper_position, latest_zoomed_resonance_frequency))
     # Start the while loop
-    wide_band_sweep_number=0
+    wide_band_sweep_number = 0
     while latest_zoomed_resonance_frequency < 14350000:
         estimated_movement_duration = move_stepper_by_steps(characterisation_increments)
         time.sleep(estimated_movement_duration / 1000)  # wait for the movement to complete
@@ -851,10 +885,11 @@ def Automatic_Characterisation_Thread_full_path():
             time.sleep(1)
         charaterisation_stepper_position = get_current_stepper_position_from_ESP32()
         full_path_characteritation_table.append((charaterisation_stepper_position, latest_zoomed_resonance_frequency))
-        wide_band_sweep_number=wide_band_sweep_number+1
-        frequ_for_title=int(latest_zoomed_resonance_frequency/1e5)/10
-        Characterisation_Initial_Wide_Band_Plot_title="Initial Wide Band Characterisation Plot (now at "+str(frequ_for_title)+" MHz, sweep n°"+str(wide_band_sweep_number)+")"
-    Characterisation_Initial_Wide_Band_Plot_title="Initial Wide Band Characterisation Plot"
+        wide_band_sweep_number = wide_band_sweep_number + 1
+        frequ_for_title = int(latest_zoomed_resonance_frequency / 1e5) / 10
+        Characterisation_Initial_Wide_Band_Plot_title = "Initial Wide Band Characterisation Plot (now at " + str(
+            frequ_for_title) + " MHz, sweep n°" + str(wide_band_sweep_number) + ")"
+    Characterisation_Initial_Wide_Band_Plot_title = "Initial Wide Band Characterisation Plot"
     with open(measured_40_to_20_meters_full_path, mode='w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(["Stepper Position", "Characterisation Frequency"])  # Header
@@ -864,10 +899,10 @@ def Automatic_Characterisation_Thread_full_path():
     steps_to_go = -(current_stepper_position - 10000)
     move_duration = move_stepper_by_steps(steps_to_go)
     print("Move duration:", move_duration)
-    characterisationRoutineRunning=False
-    completion_message=("Initial Characterisation Completed")
+    characterisationRoutineRunning = False
+    completion_message = ("Initial Characterisation Completed")
     time.sleep(1)
-    completion_message=("")
+    completion_message = ("")
 
 
 def stepper_pos_from_csv_data_cubic_spline(frequency):
@@ -915,6 +950,8 @@ def stepper_pos_from_csv_data_cubic_spline(frequency):
 
     # Return the rounded stepper position
     return round(stepper_position_solution)
+
+
 def stepper_pos_from_csv_data_poly_model(frequency):
     # Load the CSV file into a Pandas DataFrame
     data = pd.read_csv(measured_40_to_20_meters_full_path)
@@ -968,6 +1005,7 @@ def stepper_pos_from_csv_data_poly_model(frequency):
     # Return the rounded stepper position
     return round(stepper_position_solution)
 
+
 def frequency_from_stepper_pos_cubic_spline(stepper_position):
     # Load the CSV file into a Pandas DataFrame
     data = pd.read_csv(measured_40_to_20_meters_full_path)
@@ -1013,6 +1051,8 @@ def frequency_from_stepper_pos_cubic_spline(stepper_position):
 
     # Return the rounded frequency
     return round(frequency_solution)
+
+
 def create_lookup_table_poly(source_file, output_file, points, degree=3):
     # Load the CSV file into a Pandas DataFrame
     data = pd.read_csv(source_file)
@@ -1073,6 +1113,7 @@ def create_lookup_table_poly(source_file, output_file, points, degree=3):
 
     print(f"Lookup table successfully created and saved to {output_file}")
 
+
 def merge_csv_files_to_csv(filename1, filename2, output_filename, remove_duplicates=False, verbose=False):
     df1, df2 = None, None
 
@@ -1120,6 +1161,7 @@ def merge_csv_files_to_csv(filename1, filename2, output_filename, remove_duplica
     print(f"Files processed and saved successfully into {output_filename}")
     return combined_df
 
+
 def generate_polynomial_fit(characterisation_table):
     if not characterisation_table:
         return []
@@ -1150,6 +1192,8 @@ def generate_polynomial_fit(characterisation_table):
     # Return the polynomial table as a list of tuples (smooth stepper positions, predicted resonance frequencies)
     characterisation_table_poly = list(zip(stepper_positions_smooth_int, predicted_frequencies_int))
     return characterisation_table_poly
+
+
 def generate_Cubic_Spline_fit(characterisation_table):
     if not characterisation_table:
         return []
@@ -1175,6 +1219,8 @@ def generate_Cubic_Spline_fit(characterisation_table):
     characterisation_table_cubispline = list(zip(stepper_positions_smooth_int, predicted_frequencies_int))
 
     return characterisation_table_cubispline
+
+
 def convert_numpy_to_native(data):
     # Helper function to convert numpy types to native Python types
     if isinstance(data, np.ndarray):
@@ -1187,6 +1233,7 @@ def convert_numpy_to_native(data):
         return tuple(convert_numpy_to_native(i) for i in data)
     else:
         return data
+
 
 # --------------------------------------------------
 # Utility Functions
@@ -1204,6 +1251,7 @@ def get_vna_port() -> str:
             return device.device
     raise OSError("NanoVNA device not found")
 
+
 def initialize_serial(port: str, baudrate=115200, timeout=5):
     """
     Initialize the serial connection with the NanoVNA.
@@ -1220,16 +1268,18 @@ def initialize_serial(port: str, baudrate=115200, timeout=5):
         print(f"Error opening serial port: {e}")
         return None
 
+
 def send_command(ser, command: str):
     if ser is not None:
         try:
             ser.write((command + '\r\n').encode())
             time.sleep(0.1)
-            #print(f"Command sent: {command}")
+            # print(f"Command sent: {command}")
         except serial.SerialException as e:
             print(f"Error sending command: {e}")
     else:
         print("Serial connection not established.")
+
 
 def read_response(ser, timeout=15) -> str:
     """
@@ -1260,6 +1310,7 @@ def read_response(ser, timeout=15) -> str:
     filtered_lines = [line for line in lines if not (line.startswith(('version', 'scanraw', 'ch>')))]
     return '\n'.join(filtered_lines)
 
+
 def get_version_info(ser):
     """
     Send the 'version' command to the NanoVNA to retrieve version information.
@@ -1270,6 +1321,7 @@ def get_version_info(ser):
     """
     send_command(ser, 'version')  # Send 'version' command to the NanoVNA
     return read_response(ser)  # Read and return the response
+
 
 def single_sweep_for_testing():
     # Define sweep parameters
@@ -1282,7 +1334,7 @@ def single_sweep_for_testing():
     # wide sweep
     nonCalibratedNetwork, execution_time = sweep_to_non_calibrated_network(ser, start_freq, step_size, points,
                                                                            average)
-    #print(f"Time taken for the sweep: {execution_time:.2f} seconds")
+    # print(f"Time taken for the sweep: {execution_time:.2f} seconds")
     calibratedNework = apply_calibration_to_network(nonCalibratedNetwork)
     plot_S11(calibratedNework)
 
@@ -1307,6 +1359,7 @@ def single_sweep_for_testing():
 
     plot_S11(calibratedNework)
     plot_swr(calibratedNework)
+
 
 # --------------------------------------------------
 # Core Functions
@@ -1342,7 +1395,6 @@ def sweep_to_non_calibrated_network(ser, start_freq, step_size, points, average,
         # Send the scanraw command to the NanoVNA
         command = f"scanraw 0 {start_freq} {step_size} {points} {average}\r\n"
         send_command(ser, command)
-
 
         # Read the response from the NanoVNA
         response = read_response(ser)
@@ -1380,23 +1432,21 @@ def sweep_to_non_calibrated_network(ser, start_freq, step_size, points, average,
             execution_time = end_time - start_time
 
             # Return the Network object and the time taken to execute the function
-            #print(f"Time taken for the sweep: {execution_time:.2f} seconds")
+            # print(f"Time taken for the sweep: {execution_time:.2f} seconds")
             return network, execution_time
 
         else:
             print(f"No valid data received. Retrying... (Attempt {attempt + 1}/{retries})")
-            message=str(str(latest_zoomed_resonance_frequency) +" --- error line 1008")
+            message = str(str(latest_zoomed_resonance_frequency) + " --- error line 1008")
             # Open the file in append mode and write the message
             with open("log.txt", 'a') as file:
                 file.write(message + '\n')
             time.sleep(delay)
             attempt += 1
 
-
     # If all attempts fail, return None and 0 seconds
     print(f"Failed to retrieve valid data after {retries} attempts.")
     return None, 0
-
 
 
 def apply_calibration_to_network(non_calibrated_network: rf.Network,
@@ -1490,6 +1540,7 @@ def run_scanraw_to_network_file(ser, start_freq, step_size, points, average, tou
     save_network_to_file(network, touchstone_filename + ".s1p")
     return network
 
+
 def apply_calibration(s11_data, start_freq, step_size, points) -> rf.Network:
     """
     Apply SOL (Short, Open, Load) calibration to raw S11 data.
@@ -1530,7 +1581,9 @@ def apply_calibration(s11_data, start_freq, step_size, points) -> rf.Network:
 
     return calibrated_dut
 
-def analyze_network_first_dip_with_auto_span(network: rf.Network, swr_threshold: float = 5.0, swr_span_threshold: float = 4.0):
+
+def analyze_network_first_dip_with_auto_span(network: rf.Network, swr_threshold: float = 5.0,
+                                             swr_span_threshold: float = 4.0):
     """
     Simplified function to analyze a skrf.Network object, find the first S11/SWR dip, and determine an automatic span.
 
@@ -1577,7 +1630,10 @@ def analyze_network_first_dip_with_auto_span(network: rf.Network, swr_threshold:
     auto_start_freq = freq_at_min_s11 - half_span
     auto_stop_freq = freq_at_min_s11 + half_span
 
-    return (frequency_array, s11_db_array, swr_array, min_s11_db, min_swr, freq_at_min_s11, freq_at_min_swr, auto_start_freq, auto_stop_freq)
+    return (
+    frequency_array, s11_db_array, swr_array, min_s11_db, min_swr, freq_at_min_s11, freq_at_min_swr, auto_start_freq,
+    auto_stop_freq)
+
 
 def save_network_to_file(network: rf.Network, filename: str, folder_name: str = "CalibrationKit"):
     """
@@ -1594,6 +1650,7 @@ def save_network_to_file(network: rf.Network, filename: str, folder_name: str = 
     file_path = os.path.join(folder_path, filename)
     network.write_touchstone(file_path)
     print(f"Network saved to {file_path}")
+
 
 def generate_calibration_kit():
     # Define sweep parameters for the calibration network
@@ -1616,6 +1673,7 @@ def generate_calibration_kit():
     skrf_network = run_scanraw_to_network_file(ser, start_freq, step_size, points, average, touchstone_filename)
     sys.exit()
 
+
 def continuous_sweeping_thread():
     global ws_frequency_array, ws_s11_db_array, ws_swr_array, ws_min_s11_db, ws_min_swr, ws_freq_at_min_s11, ws_freq_at_min_swr
     global ns_frequency_array, ns_s11_db_array, ns_swr_array, ns_min_s11_db, ns_min_swr, ns_freq_at_min_s11, ns_freq_at_min_swr
@@ -1630,12 +1688,14 @@ def continuous_sweeping_thread():
         points = 600  # Number of points in the sweep
         step_size = int((end_freq - start_freq) / points)
         average = 1
-        print ("\nPerforming Wide Sweep (Sweep n°"+ str(sweepNumber)+")")
-        nonCalibratedNetwork, execution_time = sweep_to_non_calibrated_network(ser, start_freq, step_size, points, average)
+        print("\nPerforming Wide Sweep (Sweep n°" + str(sweepNumber) + ")")
+        nonCalibratedNetwork, execution_time = sweep_to_non_calibrated_network(ser, start_freq, step_size, points,
+                                                                               average)
         try:
             calibratedNework = apply_calibration_to_network(nonCalibratedNetwork)
             # Analyze the network and get the first dip and automatic span for next "Narrow" Sweep
-            result = analyze_network_first_dip_with_auto_span(calibratedNework, swr_threshold=5.0, swr_span_threshold=6.0)
+            result = analyze_network_first_dip_with_auto_span(calibratedNework, swr_threshold=5.0,
+                                                              swr_span_threshold=6.0)
             ws_frequency_array, ws_s11_db_array, ws_swr_array, ws_min_s11_db, ws_min_swr, ws_freq_at_min_s11, ws_freq_at_min_swr, auto_start_freq, auto_stop_freq = result
             # Narrow Sweep
             start_freq = auto_start_freq
@@ -1644,10 +1704,12 @@ def continuous_sweeping_thread():
             step_size = int((end_freq - start_freq) / points)
             average = 1
             print("\nPerforming Narrow Sweep (Sweep n°" + str(sweepNumber) + ")")
-            nonCalibratedNetwork, execution_time = sweep_to_non_calibrated_network(ser, start_freq, step_size, points, average)
+            nonCalibratedNetwork, execution_time = sweep_to_non_calibrated_network(ser, start_freq, step_size, points,
+                                                                                   average)
             calibratedNework = apply_calibration_to_network(nonCalibratedNetwork)
             # Analyze the network
-            result = analyze_network_first_dip_with_auto_span(calibratedNework, swr_threshold=5.0, swr_span_threshold=6.0)
+            result = analyze_network_first_dip_with_auto_span(calibratedNework, swr_threshold=5.0,
+                                                              swr_span_threshold=6.0)
             ns_frequency_array, ns_s11_db_array, ns_swr_array, ns_min_s11_db, ns_min_swr, ns_freq_at_min_s11, ns_freq_at_min_swr, auto_start_freq, auto_stop_freq = result
 
             # Apply filtering
@@ -1659,22 +1721,18 @@ def continuous_sweeping_thread():
 
             ns_s11_db_array = savgol_filter(ns_s11_db_array, window_length=21, polyorder=3)
             min_index = np.argmin(ns_s11_db_array)
-            ns_freq_at_min_s11= ns_frequency_array[min_index]
+            ns_freq_at_min_s11 = ns_frequency_array[min_index]
 
-            latest_zoomed_resonance_frequency=int(ns_freq_at_min_s11)
-            sweepNumber=sweepNumber+1
-            print ("Sweep:", sweepNumber, "completed")
+            latest_zoomed_resonance_frequency = int(ns_freq_at_min_s11)
+            sweepNumber = sweepNumber + 1
+            print("Sweep:", sweepNumber, "completed")
         except:
-            message = "Error at Sweep number:"+str(sweepNumber)
+            message = "Error at Sweep number:" + str(sweepNumber)
 
-            print (message)# Open the file in append mode and write the message
-            #with open("log.txt", 'a') as file:
-                #file.write(message + '\n')
+            print(message)  # Open the file in append mode and write the message
+            # with open("log.txt", 'a') as file:
+            # file.write(message + '\n')
             pass
-
-
-
-
 
 
 # --------------------------------------------------
@@ -1714,6 +1772,7 @@ def plot_S11(network: rf.Network):
     # Show the plot
     plt.show()
 
+
 def plot_swr(network: rf.Network):
     """
     Plot the SWR (Standing Wave Ratio) for a given skrf.Network object using the built-in s_vswr property.
@@ -1742,6 +1801,7 @@ def plot_swr(network: rf.Network):
     # Display the plot
     plt.show()
 
+
 # Function to log data every minute
 def record_resonance_frequency():
     # Open the file in append mode, so we don't overwrite existing data
@@ -1760,17 +1820,15 @@ def record_resonance_frequency():
             time.sleep(60)  # Wait for 1 minute
 
 
-
-
 # --------------------------------------------------
 # Main Program Flow
 # --------------------------------------------------
 ser = None  # Initialize ser as None to avoid issues in the exception handler
 
 if __name__ == '__main__':
-
-    #uploadNewLookUpTableToESP32()
-    #sys.exit()
+    print("Hello")
+    # uploadNewLookUpTableToESP32()
+    # sys.exit()
     try:
         serial_port = get_vna_port()  # Auto-detect NanoVNA port
         ser = initialize_serial(serial_port)  # Initialize the connection
@@ -1805,11 +1863,14 @@ if __name__ == '__main__':
     # Start the logging thread
     # This is to observe analyse resonance frequency fluctuations during days without moving capacitor
     logging_thread = threading.Thread(target=record_resonance_frequency, daemon=True)
-    #logging_thread.start()
+
+
+    # logging_thread.start()
 
     # Function to run Flask app
     def run_flask():
         app.run(host='127.0.0.1', use_reloader=False, port=5558)
+
 
     # Start Flask server in a separate thread
     flask_thread = threading.Thread(target=run_flask)
