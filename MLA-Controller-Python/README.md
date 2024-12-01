@@ -15,7 +15,8 @@ Check out the video for the initial configuration process of the MLA Controller:
     </a>
 </div>
 
-[Open video in a new tab](https://www.youtube.com/watch?v=leM8o_F7qt0)
+[Right-click here and open in a new tab to watch the video](https://www.youtube.com/watch?v=leM8o_F7qt0)
+
 
 
 ## Features
