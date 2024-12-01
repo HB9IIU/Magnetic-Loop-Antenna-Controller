@@ -29,7 +29,7 @@ The app uses several powerful libraries like `Flask` for server functionality, `
 - **Data Processing**: Uses advanced algorithms like cubic spline interpolation and polynomial regression to create a smooth and accurate lookup table.
 - **Web Interface**: Includes a Flask server for easy configuration and interaction with the hardware.
 - **Characterization and Calibration**: Supports storing and managing calibration and characterization data for future use.
-- **Plotting and Visualization**: Generates plots of the antenna's performance across different frequencies, helping users visualize the tuning process.
+- **Plotting and Visualization**: Generates plots of the antenna's performance across different frequencies, helping users visualize the characterization process.
 
 ## Development Environment
 The app is developed and tested exclusively on macOS. However, it has been briefly tested on Windows, and it worked as expected. It should function similarly on both platforms, but the macOS environment is the primary development setup.
