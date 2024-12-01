@@ -14,7 +14,7 @@ This project is a fully automated tuning system for a Magnetic Loop Antenna (MLA
 
 <div style="text-align: center;">
     <a href="https://www.youtube.com/watch?v=ZcbNIK3GK2c" target="_blank">
-        <img src="https://img.youtube.com/vi/v=ZcbNIK3GK2c/0.jpg" alt="Short Demo" />
+        <img src="https://img.youtube.com/vi/ZcbNIK3GK2c/maxresdefault.jpg" alt="Short Demo" />
     </a>
 </div>
 
