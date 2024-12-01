@@ -4,7 +4,7 @@
 # MLA Controller Configurator
 
 ## Overview
-The MLA Configurator is a Python-based application designed to automatically generate the lookup table that will be flashed to the Slave ESP32 used for tuning the magnetic loop antenna. It leverages a NanoVNA (Vector Network Analyzer) to collect measurement data across a range of frequencies.
+The MLA Configurator is a Python-based application designed to automatically generate the lookup table that will be flashed to the Slave ESP32. It leverages a NanoVNA (Vector Network Analyzer) to collect measurement data across a range of frequencies.
 The app uses several powerful libraries like `Flask` for server functionality, `numpy` for numerical computations, `matplotlib` for data visualization, and `scikit-learn` for data analysis and modeling. It integrates seamlessly with the NanoVNA-Q firmware and can generate calibration files and characterization data.
 
 ## Initial Configuration
@@ -33,7 +33,7 @@ The app is developed and tested exclusively on macOS. However, it has been brief
 ## VNA (Vector Network Analyzer)
 This application works with affordable NanoVNA devices, which can be found on platforms like AliExpress under the name "NanoVNA Vector Network Analyzer." 
 
-**For optimal compatibility, the NanoVNA **must** be flashed with the NanoVNA-Q firmware**. No worries—there is no risk of damaging the device during the flashing process. You can find the firmware at the [NanoVNA-Q GitHub repository](https://github.com/qrp73/NanoVNA-Q), and a copy is included in this repository.
+**For compatibility, the NanoVNA **must** be flashed with the NanoVNA-Q firmware**. No worries—there is no risk of damaging the device during the flashing process. You can find the firmware at the [NanoVNA-Q GitHub repository](https://github.com/qrp73/NanoVNA-Q), and a copy is included in this repository.
 
 ## Calibration
 For first-time use, it is necessary to generate SOL calibration networks. You can do this by uncommenting the relevant lines in the code. Look for the section marked `# Uncomment to regenerate a calibration kit` and follow the instructions in the code.
@@ -76,9 +76,6 @@ For an optimal development experience, it is recommended to use an IDE like **Py
 - `scikit-learn`
 - `skrf` (for handling network analyzer data)
 - Other libraries as specified in the `requirements.txt` file.
-
-## Data Storage
-The application saves data to CSV files in the `CharacterizationData` directory. You can access and review these files for more detailed information on the measurements.
 
 ## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
