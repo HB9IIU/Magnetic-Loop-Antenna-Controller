@@ -2,19 +2,14 @@
 # MLA-Controller-Slave
 
 This repository contains the code for the **ESP32 microcontroller**, functioning as the **SLAVE** device in the Magnetic Loop Antenna (MLA) Controller system. The SLAVE is responsible for precise control of the MLA tuning capacitor using a stepper motor and gear reduction system.
+
 <div style="text-align: center;">
     <a href="https://www.youtube.com/watch?v=OqZV3zAZ8kQ" target="_blank">
         <img src="https://img.youtube.com/vi/OqZV3zAZ8kQ/maxresdefault.jpg" alt="Short Demo" />
     </a>
 </div>
-[Right-click here and open in a new tab to watch the video](https://www.youtube.com/watch?v=OqZV3zAZ8kQ)
-<div style="text-align: center;">
-    <a href="https://www.youtube.com/watch?v=2oa5XWuVh9o" target="_blank">
-        <img src="https://img.youtube.com/vi/2oa5XWuVh9o/maxresdefault.jpg" alt="Short Demo" />
-    </a>
-</div>
 
-[Right-click here and open in a new tab to watch the video](https://www.youtube.com/watch?v=2oa5XWuVh9o)
+[Right-click here and open in a new tab to watch the video](https://www.youtube.com/watch?v=OqZV3zAZ8kQ)
 
 ## Overview
 
