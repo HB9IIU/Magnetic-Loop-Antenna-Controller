@@ -17,89 +17,81 @@ Check out the video for the initial configuration process of the MLA Controller:
 
 
 
-
-
-This repository contains the code for the **ESP32 microcontroller**, functioning as the **SLAVE** device in the Magnetic Loop Antenna (MLA) Controller system. The SLAVE is responsible for precise control of the MLA tuning capacitor using a stepper motor and gear reduction system.
+# MLA Configurator - Magnetic Loop Antenna Controller
 
 ## Overview
+The MLA Configurator is a Python-based application designed to automatically generate the lookup table that will be flashed to the Slave ESP32 for tuning a magnetic loop antenna. It leverages a NanoVNA (Vector Network Analyzer) and an ESP32 device to collect measurement data across a range of frequencies. The generated lookup table can be used by the control unit for quick tuning, ensuring optimal performance of the antenna.
 
-The SLAVE device communicates wirelessly with the MASTER ESP32 over an ad hoc 2.4 GHz network. It receives tuning instructions from the MASTER, calculates the required stepper motor adjustments, and ensures the tuning capacitor is positioned accurately to achieve optimal resonance.
+The app uses several powerful libraries like `Flask` for server functionality, `numpy` for numerical computations, `matplotlib` for data visualization, and `scikit-learn` for data analysis and modeling. It integrates seamlessly with the NanoVNA-Q firmware and can generate calibration files and characterization data.
 
-## Key Features
+## Features
+- **Measurement Collection**: Interfaces with the NanoVNA and ESP32 to collect S11, SWR, and other relevant data.
+- **Data Processing**: Uses advanced algorithms like cubic spline interpolation and polynomial regression to create a smooth and accurate lookup table.
+- **Web Interface**: Includes a Flask server for easy configuration and interaction with the hardware.
+- **Characterization and Calibration**: Supports storing and managing calibration and characterization data for future use.
+- **Plotting and Visualization**: Generates plots of the antenna's performance across different frequencies, helping users visualize the tuning process.
 
-- **Stepper Motor Control**: Operates a stepper motor with gear reduction for fine control of the tuning capacitor.
-- **Wireless Communication**: Communicates with the MASTER ESP32 via a 2.4 GHz network for seamless coordination.
-- **Persistent Position Tracking**: Maintains the capacitor's position in flash memory to ensure accuracy even after power loss.
-- **Precise Resonance Tuning**: Works in tandem with the MASTER to achieve and maintain precise resonance for high-Q antennas.
+## Development Environment
+The app is developed and tested exclusively on macOS. However, it has been briefly tested on Windows, and it worked as expected. It should function similarly on both platforms, but the macOS environment is the primary development setup.
 
-## Stepper Motor Configuration and Resolution
+## VNA (Vector Network Analyzer)
+This application works with affordable NanoVNA devices, which can be found on platforms like AliExpress under the name "NanoVNA Vector Network Analyzer." 
 
-The **DM542 stepper motor driver** is configured with a **microstep resolution of 64 microsteps per step**, achieved by setting **SW6 = OFF** and **SW7 = OFF**. With a standard 1.8° stepper motor, this results in:
+**For optimal compatibility, the NanoVNA **must** be flashed with the NanoVNA-Q firmware**. No worries—there is no risk of damaging the device during the flashing process. You can find the firmware at the [NanoVNA-Q GitHub repository](https://github.com/qrp73/NanoVNA-Q), and a copy is included in this repository.
 
-```
-Steps per Revolution = Microsteps per Step × Steps per Revolution (1.8° motor)
-                     = 64 × 200
-                     = 12,800 steps/revolution
-```
+## Calibration
+For first-time use, it is necessary to generate SOL calibration networks. You can do this by uncommenting the relevant lines in the code. Look for the section marked `# Uncomment to regenerate a calibration kit` and follow the instructions in the code.
 
-The stepper motor is paired with a **1:10 gear reduction**, which multiplies the precision of the motor. The combination of microstepping and gear reduction results in a **final resolution** of:
+## Installation
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/MLA-Configurator.git
+   ```
+2. Install required Python libraries:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-```
-Final Resolution = Steps per Revolution × Gear Ratio
-                 = 12,800 × 10
-                 = 128,000 steps/revolution
-```
+## Usage
+To begin the characterization process, it is recommended to set up a virtual environment for managing dependencies. Here's how you can do that:
 
-### Example: Moving from 7 MHz to 14 MHz
+1. **Create a virtual environment**:
+   ```bash
+   python3 -m venv venv
+   ```
 
-In practical terms, moving the tuning capacitor from **7 MHz to 14 MHz** requires approximately **1,000,000 steps**, which translates to:
+2. **Activate the virtual environment**:
+   - On macOS/Linux:
+     ```bash
+     source venv/bin/activate
+     ```
+   - On Windows:
+     ```bash
+     .\venv\Scripts\activate
+     ```
 
-```
-Number of Turns = Total Steps ÷ Final Resolution
-                = 1,000,000 ÷ 128,000
-                ≈ 7.81 turns
-```
+3. **Install the required dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
----
+4. **Run the Python script** to start the characterization process:
+   ```bash
+   python3 MLA_Configurator.py
+   ```
 
-## Stepper Motor Driver Connections
+For an optimal development experience, it is recommended to use an IDE like **PyCharm**. PyCharm provides great support for Python projects and virtual environments, making it easier to manage dependencies and work with the code.
 
-The SLAVE uses the DM542 stepper motor driver (or compatible) to control the stepper motor. Below are the pin connections:
+## Dependencies
+- `Flask`
+- `numpy`
+- `matplotlib`
+- `scikit-learn`
+- `skrf` (for handling network analyzer data)
+- Other libraries as specified in the `requirements.txt` file.
 
-- **Pulse Pin (PUL)**:
-  - ESP32 Pin: `23`
-  - DM542 Terminal: `PUL+` (Pulse signal input)
-  - Function: Sends step signals to the driver, causing the motor to move one step per pulse.
+## Data Storage
+The application saves data to CSV files in the `CharacterizationData` directory. You can access and review these files for more detailed information on the measurements.
 
-- **Direction Pin (DIR)**:
-  - ESP32 Pin: `22`
-  - DM542 Terminal: `DIR+` (Direction signal input)
-  - Function: Sets the motor's rotation direction (clockwise or counterclockwise).
-
-- **Enable Pin (EN)**:
-  - ESP32 Pin: `21`
-  - DM542 Terminal: `EN+` (Enable signal input)
-  - Function: Enables or disables the motor driver. A `LOW` signal enables the driver.
-
-### Wiring Notes
-
-- **Ground Connections**:
-  - Connect the ESP32's `GND` to the `GND` of the DM542 (`PUL-`, `DIR-`, and `EN-` are typically connected to the driver's ground).
-
-- **Power Supply**:
-  - Ensure the DM542 is powered with an appropriate voltage for the stepper motor (typically 20-50VDC). The motor's voltage does not come from the ESP32.
-
-### Alternative Driver
-
-The **DM542** was chosen because it was available in my collection of spare parts, but a simpler and more compact driver, such as the **DRV8825**, could also perform this task adequately. The DRV8825 offers lower cost and size advantages, but the DM542 provides superior handling of noise, smoother operation, and higher torque at higher speeds.
-
----
-
-## Important Notes
-
-- **Included Libraries**: All required libraries are already included in the `lib` folder. There is no need to install additional libraries.
-- **Recommended IDE**: This code is designed to be compiled using [PlatformIO](https://platformio.org/) in Visual Studio Code. PlatformIO offers an efficient and streamlined environment for ESP32 development.
-
-## Documentation
-
-For more information about the system's functionality, initial setup, and additional features, please refer to the [main repository README](https://github.com/HB9IIU/Magnetic-Loop-Antenna-Controller/tree/main).
+## License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

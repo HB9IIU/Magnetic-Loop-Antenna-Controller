@@ -50,12 +50,9 @@ global ns_frequency_array, ns_s11_db_array, ns_swr_array, ns_min_s11_db, ns_min_
 ns_frequency_array = []
 
 '''
-This works only with this firmware
+This works only with NanoVNA-Q firmware
+https://github.com/qrp73/NanoVNA-Q
 https://github.com/qrp73/NanoVNA-Q/releases/tag/0.4.4
-NanoVNA-Q is firmware for NanoVNA vector network analyzer.
-Original NanoVNA firmware and hardware was developed by @edy555 and it's source code can be found here: https://github.com/ttrftech/NanoVNA
-Later, @hugen79 introduced a new PCB (NanoVNA-H) and improvements for firmware and device become very popular. 
-@hugen79 project can be found here: https://github.com/hugen79/NanoVNA-H
 NanoVNA-Q is based on @edy555 code, includes improvements from @hugen79 and is targeted for NanoVNA-H hardware.
 '''
 # NanoVNA USB IDs
