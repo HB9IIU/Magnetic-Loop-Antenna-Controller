@@ -42,15 +42,6 @@ This application works with affordable NanoVNA devices, which can be found on pl
 ## Calibration
 For first-time use, it is necessary to generate SOL calibration networks. You can do this by uncommenting the relevant lines in the code. Look for the section marked `# Uncomment to regenerate a calibration kit` and follow the instructions in the code.
 
-## Installation
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/MLA-Configurator.git
-   ```
-2. Install required Python libraries:
-   ```bash
-   pip install -r requirements.txt
-   ```
 
 ## Usage
 To begin the characterization process, it is recommended to set up a virtual environment for managing dependencies. Here's how you can do that:
