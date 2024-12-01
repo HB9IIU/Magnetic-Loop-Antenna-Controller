@@ -2,6 +2,7 @@
 # MLA-Controller-Master-Simple
 
 This repository contains the code for the **simplified version** of the MLA-Controller-Master. It is designed for users who want an easy, plug-and-play setup without the need for soldering or complex hardware connections.
+![Alt Text](https://raw.githubusercontent.com/HB9IIU/Magnetic-Loop-Antenna-Controller/main/MLA-Controller-Master-Simple/img/SIMPLE%20MASTER.png)
 
 ## Key Features
 
