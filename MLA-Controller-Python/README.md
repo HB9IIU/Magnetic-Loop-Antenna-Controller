@@ -6,7 +6,11 @@
 make sur eto use DHCP
 Install firmware for vna
 
+## Initial Configuration
 
+Check out the video for the initial configuration process of the MLA Controller:
+
+[![Initial Configuration](https://img.youtube.com/vi/leM8o_F7qt0/0.jpg)](https://www.youtube.com/watch?v=leM8o_F7qt0)
 
 
 
