@@ -19,6 +19,10 @@ This project is a fully automated tuning system for a Magnetic Loop Antenna (MLA
 </div>
 
 [Right-click here and open in a new tab to watch the video](https://www.youtube.com/watch?v=2oa5XWuVh9o)
+<p float="left">
+  <img src="https://raw.githubusercontent.com/HB9IIU/Magnetic-Loop-Antenna-Controller/main/MLA-Controller-Master/doc/ScreenShots/img1.png" width="45%" />
+  <img src="https://raw.githubusercontent.com/HB9IIU/Magnetic-Loop-Antenna-Controller/main/MLA-Controller-Master/doc/ScreenShots/img2.png" width="45%" />
+</p>
 
 
 
