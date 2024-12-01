@@ -2,6 +2,7 @@
 # MLA-Controller-Master
 
 This repository contains the code for the **ESP32 microcontroller** functioning as the **MASTER** device in the Magnetic Loop Antenna (MLA) Controller system. The MASTER is equipped with a TFT touchscreen interface, providing users with a graphical interface to control and monitor the system's operations.
+![Alt Text](https://raw.githubusercontent.com/HB9IIU/Magnetic-Loop-Antenna-Controller/main/MLA-Controller-Master/doc/Misc/MASTER.png)
 
 ## Overview
 
