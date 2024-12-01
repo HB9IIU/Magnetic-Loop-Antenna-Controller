@@ -5,20 +5,19 @@ framework = arduino
 monitor_speed = 115200
 board_build.partitions = huge_app.csv
 
-build_flags =
+build_flags = 
 	-D USER_SETUP_LOADED
- 	-D TFT_DARKRED=0x7800 ;custom color
-	-D TFT_DARKYELLOW=0xB3E0  ; dark yellow
 	-D ILI9488_DRIVER
 	-D TFT_CS=15
-	-D TFT_RST=2
-	;-D TFT_DC=0  ; Black One
-	-D TFT_DC=5   ; Orange One
+	-D TFT_RST=2_old
+	-D TFT_DC=0  ; Black One
+	;-D TFT_DC=5   ; Orange One
 	-D TFT_MOSI=23
 	-D TFT_SCLK=18
 	-D TFT_BLP=4
 	-D TOUCH_CS=22
 	-D TFT_MISO=19
+
 
     # Font Configuration
     ; -D LOAD_FONT1   ; Original Adafruit 8 pixel font, needs ~1820 bytes in FLASH
@@ -29,7 +28,7 @@ build_flags =
     ; -D LOAD_FONT8   ; Large 75 pixel font, needs ~3256 bytes in FLASH, only characters 1234567890:-.
     -D LOAD_GFXFF    ; Include access to 48 Adafruit_GFX free fonts FF1 to FF48 and custom fonts
     -D SMOOTH_FONT   ; Enable smooth fonts
-
+  -D LOAD_GLCD=1
     # SPI Configuration
     -D SPI_FREQUENCY=27000000  ; Set SPI frequency for TFT display
     -D SPI_TOUCH_FREQUENCY=2500000 ; Set touch SPI frequency
@@ -41,4 +40,4 @@ build_flags =
 
 
 
-# HB9IIU November 2024
+# HB9IIU November 2024 
