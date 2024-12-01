@@ -8,6 +8,14 @@ This repository contains the code for the **ESP32 microcontroller**, functioning
     </a>
 </div>
 [Right-click here and open in a new tab to watch the video](https://www.youtube.com/watch?v=OqZV3zAZ8kQ)
+<div style="text-align: center;">
+    <a href="https://www.youtube.com/watch?v=2oa5XWuVh9o" target="_blank">
+        <img src="https://img.youtube.com/vi/2oa5XWuVh9o/maxresdefault.jpg" alt="Short Demo" />
+    </a>
+</div>
+
+[Right-click here and open in a new tab to watch the video](https://www.youtube.com/watch?v=2oa5XWuVh9o)
+
 ## Overview
 
 The SLAVE device communicates wirelessly with the MASTER ESP32 over an ad hoc 2.4 GHz network. It receives tuning instructions from the MASTER, calculates the required stepper motor adjustments, and ensures the tuning capacitor is positioned accurately to achieve optimal resonance.
