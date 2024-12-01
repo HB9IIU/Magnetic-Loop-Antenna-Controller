@@ -1,28 +1,21 @@
 
-# MLA-Controller-PYTHON
 
 
-
-make sur eto use DHCP
-Install firmware for vna
-
-## Initial Configuration
-
-Check out the video for the initial configuration process of the MLA Controller:
-
-[![Initial Configuration](https://img.youtube.com/vi/leM8o_F7qt0/0.jpg)](https://www.youtube.com/watch?v=leM8o_F7qt0)
-
-
-
-
-
-
-# MLA Configurator - Magnetic Loop Antenna Controller
+# Magnetic Loop Antenna Controller Configurator
 
 ## Overview
 The MLA Configurator is a Python-based application designed to automatically generate the lookup table that will be flashed to the Slave ESP32 used for tuning the magnetic loop antenna. It leverages a NanoVNA (Vector Network Analyzer) to collect measurement data across a range of frequencies.
-
 The app uses several powerful libraries like `Flask` for server functionality, `numpy` for numerical computations, `matplotlib` for data visualization, and `scikit-learn` for data analysis and modeling. It integrates seamlessly with the NanoVNA-Q firmware and can generate calibration files and characterization data.
+
+Check out the video for the initial configuration process of the MLA Controller:
+
+<div style="text-align: center;">
+    <a href="https://www.youtube.com/watch?v=leM8o_F7qt0" target="_blank">
+        <img src="https://img.youtube.com/vi/leM8o_F7qt0/0.jpg" alt="Initial Configuration" />
+        <br>Open in new tab...
+    </a>
+</div>
+
 
 ## Features
 - **Measurement Collection**: Interfaces with the NanoVNA and ESP32 to collect S11, SWR, and other relevant data.
