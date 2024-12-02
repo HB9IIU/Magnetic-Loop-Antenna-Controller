@@ -76,9 +76,9 @@ uint8_t radio_address = 0xA4; // A4 for IC-705
 #define SCREEN_HEIGHT 240
 // Function prototypes
 void displayWelcomeScreen(int duration, const char *version, const char *date);
-void printOnTFT(const char *text);
+void printOnTFT(const char *text, uint16_t textColor, uint16_t backgroundColor); // to display console type info
 void establish_WIFI_connection_with_Slave();
-bool isPTTPressed = false;                    // Track the current PTT state
+
 const unsigned long longPressThreshold = 500; // Duration for long press detection (in milliseconds)
 bool doublePTTdetected = false;
 uint8_t currentMode = 0;   // Will store the current mode value
@@ -95,13 +95,13 @@ bool PTTisON = false;
 bool allStepperInfotoBeRedrawn = true;
 
 void displayMessageAtBottom(const char *message, int font);
-void updateWiFiWidget(int x, int y, int radius, float sizePercentage, int rssi);
+void showWiFiwidget(int x, int y, int radius, float sizePercentage, int rssi);
 
 //-----------------------------------------------------------------------------------------------
 // SWR RELATED ONLY
 // Define the display area for the SWR meter
 #define SWR_BAR_X 8        // X position of the bar
-#define SWR_BAR_Y 189      // Y position of the bar
+#define SWR_BAR_Y 187      // Y position of the bar
 #define SWR_BAR_WIDTH 310  // Width of the bar
 #define SWR_BAR_HEIGHT 23  // Height of the bar
 #define SWR_TICK_HEIGHT 10 // Height of tick marks
@@ -115,11 +115,8 @@ void updateWiFiWidget(int x, int y, int radius, float sizePercentage, int rssi);
 #define SEGMENT_COLOR TFT_WHITE       // Color for the segment lines
 #define SEGMENT_COLOR_BLACK TFT_BLACK // Color for segment lines in the green portion
 
-// Store the previous SWR value to compare for optimization
 float previous_swr = -1.0;
 bool SWR_first_draw = true;
-
-// Store a flag for the first draw
 // Function declarations
 float SWR_mapFloat(float x, float in_min, float in_max, float out_min, float out_max);
 float SWR_calculate(int byte_value);
@@ -411,6 +408,23 @@ String formatFrequencyNumbers(unsigned long number)
 // DISPLAY RELATED FUNCTIONS
 
 //------------------------------------------------------------------------------------------------------------------------
+// NEW
+
+void checkPTT(bool currentPTTState);
+uint16_t initialRFPower;
+float swr;
+// Define timing constants
+const unsigned long DOUBLE_CLICK_MAX_INTERVAL = 200; // Max interval (ms) for double click
+const unsigned long LONG_PRESS_THRESHOLD = 500;      // Threshold (ms) for long press
+// Variables to track PTT state and timing
+bool lastPTTState = false;         // Stores the last PTT state (false = OFF, true = ON)
+unsigned long lastPressTime = 0;   // Time when the PTT was last pressed (ON)
+unsigned long lastReleaseTime = 0; // Time when the PTT was last released (OFF)
+bool possibleDoubleClick = false;  // Flag to check for potential double-click
+const int PTTdurationForSWRmeterInMs = 1000;
+bool TFTtouchedToDisplaySWR = false;
+void processAfterSWRdisplay();
+bool reInitializeFrequencyDisplays;
 
 // Setup function
 void setup()
@@ -432,26 +446,13 @@ void setup()
     tft.fillScreen(TFT_BLACK); // Set background to black
     tft.setRotation(1);        // Set rotation
     // pngSplashScreen();
-    delay(1300);
-    // Seed the random number generator
-    // randomSeed(analogRead(0)); // Use an unconnected analog pin for randomness
-
-    // Endless loop in setup
-    /*
-    while (true) {
-        // Generate a random float between 1.0 and 4.0 with one decimal place
-        float swr = (random(10, 41)) / 10.0;
-        SWR_drawSWRBar(swr); // Call the function with the generated value
-        delay(500); // Optional delay to control the rate of function calls
-    }
-*/
 
     displayWelcomeScreen(2000, "1.0", "November 2024");
-    printOnTFT("HB9IIU MLA Controller Starting");
+    printOnTFT("HB9IIU MLA Controller Starting", TFT_YELLOW, TFT_BLACK);
     establish_WIFI_connection_with_Slave();
 
     Serial.println("Scanning for Bluetooth devices");
-    printOnTFT("Scanning for Bluetooth devices"); // Print the message on the TFT display
+    printOnTFT("Scanning for Bluetooth devices", TFT_YELLOW, TFT_BLACK); // Print the message on the TFT display
 
     BLEDevice::init("");
     BLEScan *pBLEScan = BLEDevice::getScan();
@@ -460,9 +461,9 @@ void setup()
     BLEScanResults foundDevices = pBLEScan->start(5, false);
 
     String message = "Found Bluetooth devices: " + String(foundDevices.getCount());
-    printOnTFT(message.c_str()); // Use c_str() to convert the String to a C-style string
+    printOnTFT(message.c_str(), TFT_GREEN, TFT_BLACK); // Use c_str() to convert the String to a C-style string
     Serial.println("Scan done!");
-    printOnTFT("Scan done!");
+    printOnTFT("Scan done!", TFT_GREEN, TFT_BLACK);
     Serial.print("Found Bluetooth devices: ");
     Serial.println(foundDevices.getCount());
 
@@ -471,11 +472,11 @@ void setup()
         Serial.print("Scan did not reveal device: ");
         Serial.println(deviceName);
         String message = String(deviceName) + " not found";
-        printOnTFT(message.c_str());
+        printOnTFT(message.c_str(), TFT_RED, TFT_BLACK);
     }
     else
     {
-        printOnTFT("IC705 Found!");
+        printOnTFT("IC705 Found!", TFT_GREEN, TFT_BLACK);
     }
 
     // Start the SPI for the touchscreen and init the touchscreen
@@ -488,10 +489,13 @@ void setup()
 
 void loop()
 {
+    // Serial.print("PTTisON:");
+    // Serial.println(PTTisON);
     // Rescan only if not connected and doConnect is false
     if (!connected && !doConnect)
     {
         Serial.println("Rescanning for device...");
+        printOnTFT("Rescanning for device...", TFT_WHITE, TFT_BLACK);
 
         BLEScan *pBLEScan = BLEDevice::getScan();
         pBLEScan->clearResults(); // Clear previous scan results
@@ -502,48 +506,48 @@ void loop()
         // Combine the text with the device count
         String message = "Devices found: " + String(foundDevices.getCount());
         // Print the combined message on the TFT display
-
+        printOnTFT(message.c_str(), TFT_WHITE, TFT_BLACK);
         Serial.println("Rescan done!");
+        printOnTFT("Rescan done!", TFT_GREEN, TFT_BLACK);
 
         if (!doConnect)
         {
-            Serial.print("Device still not found: ");
+            Serial.print("IC705 still not found: ");
+            printOnTFT("IC705 still not found!", TFT_RED, TFT_BLACK);
             Serial.println(deviceName);
             delay(2000); // Wait for 2 seconds before re-scanning
         }
     }
-
     // Attempt to connect if doConnect is true and not yet connected
     if (doConnect && !connected)
     {
         if (connectToServer(*pServerAddress))
         {
             Serial.println("We are now connected to the BLE Server.");
-            printOnTFT("Connection to BLE Server is OK!");
-            printOnTFT("We can start !!!");
-            delay(1500);
+            printOnTFT("Connection to BLE Server is OK!", TFT_GREEN, TFT_BLACK);
+            printOnTFT("        We can start !!!", TFT_GREEN, TFT_BLACK);
+            delay(1000);
+            showWiFiwidget(160, 130, 100, 100, WiFi.RSSI());
+            delay(2500);
             tft.fillScreen(TFT_BLACK); // Set background to black
-
-            updateWiFiWidget(160, 120, 100, 100, WiFi.RSSI());
-
-            delay(2000);
-            tft.fillScreen(TFT_BLACK); // Set background to black
-            // getting VFO frequency for th e1st time
+            //   getting VFO frequency for th e1st time
             uint8_t CIV_frequency[] = {0xFE, 0xFE, radio_address, 0xE0, 0x03, 0xFD};
             pRXCharacteristic->writeValue(CIV_frequency, sizeof(CIV_frequency));
             delay(80);
 
             // display fake value to initiate
-            displayVFOfrequency(1111111111, 20, 10, TFT_CYAN);
+            displayVFOfrequency(1111111110, 20, 10, TFT_CYAN);
             displayVFOfrequency(CurrentVFOFrequency, 20, 10, TFT_CYAN);
             GetTunedStatusFromSlave(); // to get current stepper pos and theoretical resonance freq
+
             // display fake value to initiate
-            displayRESONANCEfrequency(1111111111, 22, 105, TFT_GREEN);
-            displayRESONANCEfrequency(theoreticalResonanceFrequency, 22, 105, TFT_GREEN);
+            displayRESONANCEfrequency(1111111110, 20, 105, TFT_GREEN);
+            displayRESONANCEfrequency(theoreticalResonanceFrequency, 20, 105, TFT_GREEN);
         }
         else
         {
             Serial.println("We have failed to connect to the server.");
+            printOnTFT("Failed Connection to BLE Server", TFT_WHITE, TFT_BLACK);
         }
         doConnect = false; // Ensure we don’t attempt to reconnect immediately
     }
@@ -555,49 +559,42 @@ void loop()
         if (pTXCharacteristic == nullptr || !pTXCharacteristic->getRemoteService()->getClient()->isConnected())
         {
             Serial.println("Connection lost. Attempting to reconnect...");
-
-            reconnectFlag = true; // to force VFO frequency display for unchanged frequency
+            tft.fillScreen(TFT_BLACK); // Set background to black
+            printOnTFT("Bluetooth connection lost!", TFT_RED, TFT_BLACK);
+            printOnTFT("Attempting to reconnect...", TFT_YELLOW, TFT_BLACK);
+            reInitializeFrequencyDisplays = true;
+            allStepperInfotoBeRedrawn = true;
+            reconnectFlag = true;
             connected = false;
             doConnect = true; // Reset flags to trigger rescan
-            delay(1000);      // Delay before retrying
+            delay(500);       // Delay before retrying
             return;
         }
-        // Continue normal communication if still connected
-        // to get frequency
+
+        //  Continue normal communication if still connected
+        //  Send the CIV command to get VFO frequency
         uint8_t CIV_frequency[] = {0xFE, 0xFE, radio_address, 0xE0, 0x03, 0xFD};
         pRXCharacteristic->writeValue(CIV_frequency, sizeof(CIV_frequency));
-        delay(80); // important, otherwise hangs
+        delay(10);
+
         // Send the CIV command to get the PTT status
         uint8_t CIV_PTT_Status[] = {0xFE, 0xFE, radio_address, 0xE0, 0x1C, 0x00, 0xFD};
         pRXCharacteristic->writeValue(CIV_PTT_Status, sizeof(CIV_PTT_Status));
-        delay(80);
+        delay(10);
         displayVFOfrequency(CurrentVFOFrequency, 20, 10, TFT_CYAN);
         getStepperPositionForCurrentVFOfrequency(CurrentVFOFrequency);
 
-        if (errorBanner == true
+        TFTtouchedToDisplaySWR = false;
 
-        )
+        // Scanning touchscreen to detect interaction
+        // Get Touchscreen points
+        TS_Point p = touchscreen.getPoint();
+        // Calibrate Touchscreen points with map function to the correct width and height
+        int x = map(p.x, 200, 3700, 1, SCREEN_WIDTH);
+        int y = map(p.y, 240, 3800, 1, SCREEN_HEIGHT);
+        int z = p.z;
+        if (z > 0) // touch detected
         {
-
-            displayMessageAtBottom("Out of Range!", 2);
-            allStepperInfotoBeRedrawn = true;
-        }
-
-        if (PTTisON)
-        {
-            displayMessageAtBottom("ON AIR", 1);
-
-            allStepperInfotoBeRedrawn = true;
-        }
-        // checkIfWifiIsStillConnected();
-        if (touchscreen.tirqTouched() && touchscreen.touched())
-        {
-            // Get Touchscreen points
-            TS_Point p = touchscreen.getPoint();
-            // Calibrate Touchscreen points with map function to the correct width and height
-            int x = map(p.x, 200, 3700, 1, SCREEN_WIDTH);
-            int y = map(p.y, 240, 3800, 1, SCREEN_HEIGHT);
-            int z = p.z;
             Serial.print("X = ");
             Serial.print(x);
             Serial.print(" | Y = ");
@@ -605,6 +602,12 @@ void loop()
             Serial.print(" | Pressure = ");
             Serial.print(z);
             Serial.println();
+            // if pressed on the upper part of display
+            if (y < SCREEN_HEIGHT / 3 * 2)
+            {
+                TFTtouchedToDisplaySWR = true;
+            }
+
             if (deltaSteps != 0)
             {
                 setNewPositionForCurrentVFOfrequency(CurrentVFOFrequency);
@@ -614,28 +617,81 @@ void loop()
                 // cheating a bit because GetTunedStatusFromSlave will return a slightly different value of couple of Hz
                 // so we print VFO frequency to avoid confusio
                 allStepperInfotoBeRedrawn = true;
-                displayRESONANCEfrequency(CurrentVFOFrequency, 22, 105, TFT_GREEN);
+                displayRESONANCEfrequency(CurrentVFOFrequency, 20, 105, TFT_GREEN);
                 deltaSteps = 0; // set manually, will be update at VFO frequ change
                 displayStepperInfo(currentStepperPosition, deltaSteps);
             }
-            else
-            {
-
-                // Loop to call SWR_drawSWRBar
-                for (int i = 0; i < 10; i++)
-                { // Change 10 to however many times you want to call the function
-                    // Generate a random float between 10.0 and 40.0, then divide by 10.0 to get 1.0 to 4.0
-                    float swr = (random(10, 41)) / 10.0;
-                    SWR_drawSWRBar(swr); // Call the function with the generated value
-                    delay(100);          // Optional delay between calls (500 ms here)
-                }
-                allStepperInfotoBeRedrawn = true;
-                tft.fillRect(0, 185, 320, 240, TFT_BLACK); // Fill the rectangle from (0,y) to (displayWidth, displayHeight)
-
-                displayStepperInfo(currentStepperPosition, deltaSteps);
-                SWR_first_draw = true;
-            }
         }
+
+        if (doublePTTdetected == true)
+        {
+            doublePTTdetected = false;
+            // TuneOnDoublePTTclick();
+        }
+
+        if (TFTtouchedToDisplaySWR == true)
+        {
+            // Send the CIV command to read the selected band’s RF power
+            uint8_t CIV_Read_RF_Power[] = {0xFE, 0xFE, radio_address, 0xE0, 0x14, 0x0A, 0xFD};
+            pRXCharacteristic->writeValue(CIV_Read_RF_Power, sizeof(CIV_Read_RF_Power));
+            delay(50);
+
+            // Send the CI-V command to set the RF power level to 10% (0x26)
+            uint8_t CIV_Set_RF_Power[] = {0xFE, 0xFE, radio_address, 0xE0, 0x14, 0x0A, 0x00, 0x26, 0xFD};
+            pRXCharacteristic->writeValue(CIV_Set_RF_Power, sizeof(CIV_Set_RF_Power));
+            delay(50); // Allow some time for the command to be sent
+
+            // Send the CIV command to get the MODE and FILTER
+            uint8_t CIV_Get_Mode_Filter[] = {0xFE, 0xFE, radio_address, 0xE0, 0x04, 0xFD};
+            pRXCharacteristic->writeValue(CIV_Get_Mode_Filter, sizeof(CIV_Get_Mode_Filter));
+            delay(10);
+
+            // To set MODE to FM and FILTER to FIL1 (will revert when button is released)
+            uint8_t CIV_Set_Mode_Filter[] = {0xFE, 0xFE, radio_address, 0xE0, 0x01, 0x05, 0x01, 0xFD};
+            pRXCharacteristic->writeValue(CIV_Set_Mode_Filter, sizeof(CIV_Set_Mode_Filter));
+            delay(10);
+
+            // Send the CIV command to turn PTT ON (will tur OFF when button is released)
+            uint8_t CIV_PTT_ON[] = {0xFE, 0xFE, radio_address, 0xE0, 0x1C, 0x00, 0x01, 0xFD};
+            pRXCharacteristic->writeValue(CIV_PTT_ON, sizeof(CIV_PTT_ON));
+            delay(10);
+            unsigned long startTime = millis();
+            // float testSWR = 1;
+            while (millis() - startTime < PTTdurationForSWRmeterInMs)
+            {
+                // Send the CIV command to get SWR
+                uint8_t CIV_Get_SWR[] = {0xFE, 0xFE, radio_address, 0xE0, 0x15, 0x12, 0xFD};
+                pRXCharacteristic->writeValue(CIV_Get_SWR, sizeof(CIV_Get_SWR));
+                delay(10); // Allow some time for the response
+
+                // Serial.println(swr);
+
+                SWR_drawSWRBar(swr);
+                // Serial.println(testSWR);
+
+                // SWR_drawSWRBar(testSWR);
+
+                // testSWR = testSWR + .1;
+
+                delay(25); // Control the update rate
+            }
+            processAfterSWRdisplay();
+        }
+        if (errorBanner == true
+
+        )
+        {
+            displayMessageAtBottom("Out of Range!", 2);
+            allStepperInfotoBeRedrawn = true;
+        }
+
+        if (PTTisON)
+        {
+            displayMessageAtBottom("ON AIR", 1);
+            allStepperInfotoBeRedrawn = true;
+        }
+
+        reInitializeFrequencyDisplays = false;
     }
 }
 
@@ -800,8 +856,6 @@ void checkIfWifiIsStillConnected()
     }
 }
 
-//
-
 void displayWelcomeScreen(int duration, const char *version, const char *date)
 {
     // Center coordinates
@@ -919,13 +973,14 @@ void displayWelcomeScreen(int duration, const char *version, const char *date)
     tft.fillScreen(TFT_BLACK); // Clear the screen
 }
 
-void printOnTFT(const char *text)
+void printOnTFT(const char *text, uint16_t textColor, uint16_t backgroundColor)
 {
     // Static variable to keep track of the Y position across function calls
-    static int currentYonTFT = 25; // Start at the top of the display
+    static int currentYonTFT = 15; // Start at the top of the display
 
-    tft.setFreeFont(FSS9);                 // Use the bold font
-    tft.setTextColor(TFT_CYAN, TFT_BLACK); // Set text color to white, background to black
+    tft.setFreeFont(FSS9);
+
+    tft.setTextColor(textColor, backgroundColor); // Set text color to white, background to black
 
     if (currentYonTFT > 255) // adjusted manually
     {
@@ -933,10 +988,10 @@ void printOnTFT(const char *text)
         currentYonTFT = 15;        // Reset Y position to the top of the display
     }
 
-    int lineHeight = 20; // Adjust this value according to your font size (e.g., FreeMonoBold12pt7b)
+    int lineHeight = 24; // Adjust this value according to your font size (e.g., FreeMonoBold12pt7b)
 
     // Print the text at the current cursor position
-    tft.setCursor(15, currentYonTFT); // Set x to 10, adjust as needed
+    tft.setCursor(10, currentYonTFT); // Set x to 10, adjust as needed
     tft.println(text);
 
     // Move to the next line
@@ -946,7 +1001,7 @@ void printOnTFT(const char *text)
 void establish_WIFI_connection_with_Slave()
 {
     Serial.print("Establishing WiFi Connection with Slave...");
-    printOnTFT("Connecting To Slave via WiFi...");
+    printOnTFT("Connecting To Slave via WiFi...", TFT_YELLOW, TFT_BLACK);
 
     // Attempt to connect to WiFi
     WiFi.begin(SSID);
@@ -971,9 +1026,9 @@ void establish_WIFI_connection_with_Slave()
         Serial.print("Signal Quality:");
         Serial.println(linkQuality);
 
-        printOnTFT("Wifi Connection to Slave OK");
+        printOnTFT("Wifi Connection to Slave OK", TFT_GREEN, TFT_BLACK);
         String message = "Link Quality: " + linkQuality;
-        printOnTFT(message.c_str());
+        printOnTFT(message.c_str(), TFT_GREEN, TFT_BLACK);
 
         // Initialize HTTPClient
         String url = String("http://") + slaveIP.toString() + "/command"; // Ensure slaveIP is defined
@@ -983,9 +1038,9 @@ void establish_WIFI_connection_with_Slave()
     else
     {
         Serial.println("\nConnection failed, rebooting in 3 seconds");
-        printOnTFT("No WiFi Connection to Slave");
-        printOnTFT("Please check your Slave");
-        printOnTFT("Re-Booting in 3 seconds");
+        printOnTFT("No WiFi Connection to Slave", TFT_RED, TFT_BLACK);
+        printOnTFT("Please check your Slave", TFT_YELLOW, TFT_BLACK);
+        printOnTFT("Re-Booting in 3 seconds", TFT_YELLOW, TFT_BLACK);
         delay(3000);
         ESP.restart();
     }
@@ -1000,7 +1055,7 @@ bool connectToServer(BLEAddress pAddress)
     String fullMessage = "Connecting to: " + String(pAddress.toString().c_str());
 
     // Pass the concatenated string to printOnTFT
-    printOnTFT(fullMessage.c_str());
+    printOnTFT(fullMessage.c_str(), TFT_YELLOW, TFT_BLACK);
 
     BLEClient *pClient = BLEDevice::createClient();
     Serial.println(" - Created client");
@@ -1091,8 +1146,6 @@ static void notifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, ui
     }
     */
     // Check for PTT status change
-    // Variable to hold the previous PTT status
-    static bool previousPTTisON = false; // Use static so it retains value between calls
     if (length == 8 &&
         pData[0] == 0xFE && pData[1] == 0xFE && // Start of the packet
         pData[2] == 0xE0 &&                     // Source address
@@ -1100,19 +1153,102 @@ static void notifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, ui
         pData[4] == 0x1C &&                     // PTT command identifier
         pData[5] == 0x00)                       // Sub-command for PTT status
     {
-        PTTisON = (pData[6] == 0x01); // PTT ON if 0x01, OFF if 0x00
-                                      // Check if the status has changed from ON (1) to OFF (0)
-        if (previousPTTisON == true && PTTisON == false)
-        {
-            Serial.println("PTT turned OFF.");
-            // Draw a black rectangle covering the bottom part of the screen
-            tft.fillRect(0, 190, 320, 240, TFT_BLACK); // Fill the rectangle from (0,y) to (displayWidth, displayHeight)
 
-            displayStepperInfo(currentStepperPosition, deltaSteps);
+        /*
+        unsigned long currentPacketTime = millis(); // Get the current time in milliseconds
+
+        // If this is not the first packet, calculate the interval
+        if (packetCount > 0)
+        {
+            unsigned long interval = currentPacketTime - lastPacketTime; // Time difference since last packet
+            intervalSum += interval;                                     // Add to the running sum of intervals
         }
 
-        // Update previousPTTisON for the next iteration
-        previousPTTisON = PTTisON;
+        lastPacketTime = currentPacketTime; // Update the last packet time
+        packetCount++;                      // Increment the packet count
+
+        // Calculate the average interval (in milliseconds)
+        float averageInterval = (packetCount > 1) ? (float)intervalSum / (packetCount - 1) : 0;
+
+        // Optional: Print the average interval
+        // Serial.print("Average Interval: ");
+        // Serial.print(averageInterval);
+        // Serial.println(" ms");
+*/
+        bool PTTStatus = (pData[6] == 0x01);  // PTT ON if 0x01, OFF if 0x00
+        unsigned long currentTime = millis(); // Current time in ms
+        PTTisON = PTTStatus;
+        checkPTT(PTTStatus);
+    }
+
+    // Check for selected band’s RF power response
+    if (length == 9 &&
+        pData[0] == 0xFE && pData[1] == 0xFE && // Start of the packet
+        pData[2] == 0xE0 &&                     // Source address (IC-705)
+        pData[3] == radio_address &&            // Verify radio address (e.g., 0xA4)
+        pData[4] == 0x14 &&                     // Command for various settings
+        pData[5] == 0x0A)                       // Sub-command for RF power
+    {
+        // Combine the high byte (pData[6]) and low byte (pData[7]) into a 16-bit value
+        initialRFPower = (pData[6] << 8) | pData[7]; //
+        Serial.println("");
+
+        Serial.println("------------R------------");
+
+        Serial.print(pData[6], HEX);
+        Serial.print("  ");
+        Serial.println(pData[7], HEX);
+        Serial.println("-------------------------");
+
+        // Calculate percentage based on the observed maximum range (597 in decimal)
+        float RF_Power_Percentage = (initialRFPower / 597.0) * 100;
+        Serial.print("RF Power Level: ");
+        Serial.print(RF_Power_Percentage);
+        Serial.println("%");
+
+        /*
+        Serial.print(pData[6], HEX);
+        Serial.print("  ");
+        Serial.println(pData[7], HEX); ////xxxx
+
+        */
+    }
+
+    // Check for mode and filter status packet
+    if (length == 8 &&
+        pData[0] == 0xFE && pData[1] == 0xFE && // Start of the packet
+        pData[2] == 0xE0 &&                     // Source address is always 0xE0 in this case (IC-705)
+        pData[3] == radio_address &&            // Verify radio address (e.g., 0xA4)
+        pData[4] == 0x04)                       // Command identifier for Mode/Filter
+    {
+        // Define the mode and filter mappings
+        const char *modes[] = {"LSB", "USB", "AM", "CW", "RTTY", "FM", "WFM", "CW-R", "RTTY-R", "", "", "", "", "", "", "", "", "", "", "DV"};
+        const char *filters[] = {"FIL1", "FIL2", "FIL3"};
+
+        // Mode is likely in pData[5]
+        currentMode = pData[5]; // Assign mode value to global variable
+        // Serial.print("Mode: ");
+        if (currentMode < sizeof(modes) / sizeof(modes[0]))
+        {
+            Serial.println(modes[currentMode]); // Map the mode to text
+        }
+        else
+        {
+            Serial.println("Unknown Mode");
+        }
+
+        // Filter status is likely in pData[6]
+        currentFilter = pData[6]; // Assign filter value to global variable
+        // Serial.print("Filter: ");
+
+        if (currentFilter > 0 && (currentFilter - 1) < sizeof(filters) / sizeof(filters[0]))
+        {
+            Serial.println(filters[currentFilter - 1]); // Map the filter to text
+        }
+        else
+        {
+            Serial.println("Unknown Filter");
+        }
     }
 
     // Check for SWR packet
@@ -1125,9 +1261,18 @@ static void notifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, ui
         // Extract the SWR value (high and low bytes are in pData[6] and pData[7])
         uint8_t swr_high = pData[6];
         uint8_t swr_low = pData[7];
-        swrByteValue = (swr_high << 8) | swr_low;
-        // Serial.print("SWR Byte Value: ");
-        // Serial.println(swrByteValue);
+        uint16_t swrByteValue = (swr_high << 8) | swr_low;
+
+        // Calculate the actual SWR using the formula
+        swr = 0.00696 * swrByteValue + 1.026;
+
+        // Optional: Print the results for debugging
+        /*
+        Serial.print("SWR Byte Value: ");
+        Serial.println(swrByteValue);
+        Serial.print("Calculated SWR: ");
+        Serial.println(swr);
+*/
     }
 
     // Call the function to decode the frequency
@@ -1143,13 +1288,14 @@ void displayVFOfrequency(long freq, int x, int y, uint16_t colour)
     static bool isInitialized = false;          // Flag to ensure initialization only happens once
 
     // Initialize previousDisplayedfrequency only on the first function call
-    if (!isInitialized)
+    if (!isInitialized || reInitializeFrequencyDisplays == true)
     {
         strcpy(previousDisplayedfrequency, "0000000000"); // Initialize with the default placeholder value
         isInitialized = true;                             // Set the flag to true to prevent future initialization
 
         // Draw the frame only during initialization
         int charWidth = tft.textWidth("00.000.000");
+
         int frameWidth = charWidth + 20;          // Increase padding for a larger frame
         int frameHeight = tft.fontHeight(7) + 30; // Increase padding for a larger frame
         int frameX = x - 10;                      // Adjust x for larger padding
@@ -1248,7 +1394,7 @@ void displayRESONANCEfrequency(long freq, int x, int y, uint16_t colour)
     static bool isInitialized = false;          // Flag to ensure initialization only happens once
 
     // Initialize previousDisplayedfrequency only on the first function call
-    if (!isInitialized)
+    if (!isInitialized || reInitializeFrequencyDisplays == true)
     {
         strcpy(previousDisplayedfrequency, "0000000000"); // Initialize with the default placeholder value
         isInitialized = true;                             // Set the flag to true to prevent future initialization
@@ -1349,7 +1495,7 @@ void displayStepperInfo(int currentPos, int stepsToGo)
 {
 
     int x = 12;
-    int y = 195;
+    int y = 190;
 
     static bool labelsDrawn = false; // Static variable to track if labels have been drawn
     if (allStepperInfotoBeRedrawn == true)
@@ -1431,13 +1577,14 @@ void displayStepperInfo(int currentPos, int stepsToGo)
     tft.setFreeFont(&FreeMonoBold12pt7b);   // Set the FreeMonoBold12pt7b font from TFT_eSPI
 
     // Only draw the labels once (first time)
-    if (!labelsDrawn)
+    if (!labelsDrawn || allStepperInfotoBeRedrawn == true)
     {
         tft.fillRect(x, y, 320, 240 - y, TFT_BLACK); // Fill background
 
         tft.drawString("Current Pos: ", x, y);
         tft.drawString("Steps to Go: ", x, y + 25); // Adjust y position for spacing
         labelsDrawn = true;                         // Set the flag so labels are not drawn again
+        allStepperInfotoBeRedrawn = false;
     }
 
     // Display formatted values
@@ -1452,9 +1599,9 @@ void displayStepperInfo(int currentPos, int stepsToGo)
 void drawProgressBar(int duration)
 {
     int x = 2;
-    int y = 196;
+    int y = 190;
     int givenWidth = 320;
-    int height = 35;
+    int height = 40;
     int color = TFT_GREENYELLOW;
 
     // clear the area
@@ -1543,11 +1690,13 @@ void displayMessageAtBottom(const char *message, int font)
     delay(200);
 }
 
-void updateWiFiWidget(int x, int y, int radius, float sizePercentage, int rssi)
+void showWiFiwidget(int x, int y, int radius, float sizePercentage, int rssi)
 {
-    // int rssi=WiFi.RSSI();
-
-    static int previousRSSILevel = -1; // Track the previous RSSI level to avoid unnecessary redraws
+    tft.fillScreen(TFT_BLACK); // Set background to black
+    tft.setTextFont(4);        // Set the font
+    tft.setCursor(82, 13);
+    tft.setTextColor(TFT_GREEN);
+    tft.print("RF link Quality");
 
     // Function to convert degrees to radians
     auto degToRad = [](float deg)
@@ -1596,16 +1745,13 @@ void updateWiFiWidget(int x, int y, int radius, float sizePercentage, int rssi)
     else
         rssiLevel = 0; // Very weak or no signal
 
-    if (rssiLevel == previousRSSILevel)
-        return; // If RSSI level hasn't changed, do nothing
-
     // Scale the radius by the provided sizePercentage
     int scaledRadius = radius * (sizePercentage / 100.0);
 
     // Define color for active and inactive sectors
     uint16_t activeColor = TFT_GREEN;
     uint16_t inactiveColor = TFT_DARKGREY;
-
+    int previousRSSILevel = -1; // modified from original MASTER
     // Update only the sectors that have changed
     for (int i = 1; i <= 4; i++)
     {
@@ -1630,18 +1776,13 @@ void updateWiFiWidget(int x, int y, int radius, float sizePercentage, int rssi)
             }
         }
     }
-
-    // Update the previous RSSI level
-    previousRSSILevel = rssiLevel;
-
     // Display the dB level below the icon
     tft.setFreeFont(FMB18);                 // Set small font size
     tft.setTextColor(TFT_WHITE, TFT_BLACK); // White text with black background to clear previous text
     tft.setCursor(x - 33, y + 53);          // Position the text below the Wi-Fi icon
-
-    tft.printf("%d", rssi);        // Print the RSSI value in dBm
-    tft.setCursor(x - 33, y + 80); // Position the text below the Wi-Fi icon
-    tft.printf("dBm");             // Print the RSSI value in dBm
+    tft.printf("%d", rssi);                 // Print the RSSI value in dBm
+    tft.setCursor(x - 33, y + 80);          // Position the text below the Wi-Fi icon
+    tft.printf("dBm");                      // Print the RSSI value in dBm
 }
 
 // SWR _--------------------------------------------------------
@@ -1833,4 +1974,72 @@ float SWR_applyLogarithmicScale(float swr)
 
     // Return scaled value (between 0 and 1)
     return (log10(swr) - log_swr_min) / (log_swr_max - log_swr_min);
+}
+
+// function to detect fast double PTT
+void checkPTT(bool currentPTTState)
+{
+    unsigned long currentTime = millis();
+
+    // Detect a rising edge (OFF -> ON)
+    if (currentPTTState && !lastPTTState)
+    {
+        // Check if the time since the last release is within double-click interval
+        if (possibleDoubleClick && (currentTime - lastReleaseTime <= DOUBLE_CLICK_MAX_INTERVAL))
+        {
+            Serial.println("Double PTT detected");
+            doublePTTdetected = true;
+            possibleDoubleClick = false; // Reset the double-click flag
+        }
+        else
+        {
+            // Otherwise, start tracking a potential double-click
+            possibleDoubleClick = true;
+            lastPressTime = currentTime;
+        }
+    }
+
+    // Detect a falling edge (ON -> OFF)
+    if (!currentPTTState && lastPTTState)
+    {
+        // Check if the press duration was not a long press
+        if ((currentTime - lastPressTime) < LONG_PRESS_THRESHOLD)
+        {
+            lastReleaseTime = currentTime; // Update the last release time
+        }
+        else
+        {
+            // If it was a long press, reset the double-click flag
+            possibleDoubleClick = false;
+        }
+    }
+
+    // Update the last PTT state
+    lastPTTState = currentPTTState;
+}
+
+void processAfterSWRdisplay()
+{
+    Serial.println("Setting MODE and FIL to initial values");
+    // Send the CIV command to turn PTT OFF
+    uint8_t CIV_PTT_OFF[] = {0xFE, 0xFE, radio_address, 0xE0, 0x1C, 0x00, 0x00, 0xFD};
+    pRXCharacteristic->writeValue(CIV_PTT_OFF, sizeof(CIV_PTT_OFF));
+    delay(100);
+    // Send the CIV command to restore original Power Setting
+    uint8_t highByte = (initialRFPower >> 8) & 0xFF; // Extract the high byte
+    uint8_t lowByte = initialRFPower & 0xFF;         // Extract the low byte
+    // Construct the CI-V command to set RF power back to initialRFPower
+    uint8_t CIV_Set_RF_Power[] = {0xFE, 0xFE, radio_address, 0xE0, 0x14, 0x0A, highByte, lowByte, 0xFD};
+    // Send the command
+    pRXCharacteristic->writeValue(CIV_Set_RF_Power, sizeof(CIV_Set_RF_Power));
+    delay(10); // Allow some time for the command to be sent
+    // To set the MODE and FILTER back to currentMode and currentFilter
+    uint8_t CIV_Set_Current_Mode_Filter[] = {0xFE, 0xFE, radio_address, 0xE0, 0x01, currentMode, currentFilter, 0xFD};
+    pRXCharacteristic->writeValue(CIV_Set_Current_Mode_Filter, sizeof(CIV_Set_Current_Mode_Filter));
+    delay(100);
+    allStepperInfotoBeRedrawn = true;
+    tft.fillRect(0, SWR_BAR_Y, 480, 320 - SWR_BAR_Y, SWR_COLOR_BG); // Erase background
+    allStepperInfotoBeRedrawn = true;
+    displayStepperInfo(currentStepperPosition, deltaSteps);
+    SWR_first_draw = true; // Track if this is the first call of SWR_drawLogarithmicSWRbar
 }

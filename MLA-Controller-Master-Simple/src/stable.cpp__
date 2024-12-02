@@ -528,7 +528,7 @@ void loop()
             printOnTFT("        We can start !!!", TFT_GREEN, TFT_BLACK);
             delay(1000);
             showWiFiwidget(160, 130, 100, 100, WiFi.RSSI());
-            delay(5000);
+            delay(2500);
             tft.fillScreen(TFT_BLACK); // Set background to black
             //   getting VFO frequency for th e1st time
             uint8_t CIV_frequency[] = {0xFE, 0xFE, radio_address, 0xE0, 0x03, 0xFD};
@@ -536,12 +536,12 @@ void loop()
             delay(80);
 
             // display fake value to initiate
-            displayVFOfrequency(1111111111, 20, 10, TFT_CYAN);
+            displayVFOfrequency(1111111110, 20, 10, TFT_CYAN);
             displayVFOfrequency(CurrentVFOFrequency, 20, 10, TFT_CYAN);
             GetTunedStatusFromSlave(); // to get current stepper pos and theoretical resonance freq
 
             // display fake value to initiate
-            displayRESONANCEfrequency(1111111111, 20, 105, TFT_GREEN);
+            displayRESONANCEfrequency(1111111110, 20, 105, TFT_GREEN);
             displayRESONANCEfrequency(theoreticalResonanceFrequency, 20, 105, TFT_GREEN);
         }
         else
@@ -552,7 +552,6 @@ void loop()
         doConnect = false; // Ensure we don’t attempt to reconnect immediately
     }
 
-   
     // If connected, perform BLE communication
     if (connected)
     {
@@ -622,10 +621,6 @@ void loop()
                 deltaSteps = 0; // set manually, will be update at VFO frequ change
                 displayStepperInfo(currentStepperPosition, deltaSteps);
             }
-
-            // TuneOnDoublePTTclick();
-
-            // currentMillis = millis(); // Get the current time
         }
 
         if (doublePTTdetected == true)
@@ -636,7 +631,6 @@ void loop()
 
         if (TFTtouchedToDisplaySWR == true)
         {
-
             // Send the CIV command to read the selected band’s RF power
             uint8_t CIV_Read_RF_Power[] = {0xFE, 0xFE, radio_address, 0xE0, 0x14, 0x0A, 0xFD};
             pRXCharacteristic->writeValue(CIV_Read_RF_Power, sizeof(CIV_Read_RF_Power));
@@ -662,7 +656,7 @@ void loop()
             pRXCharacteristic->writeValue(CIV_PTT_ON, sizeof(CIV_PTT_ON));
             delay(10);
             unsigned long startTime = millis();
-            //float testSWR = 1;
+            // float testSWR = 1;
             while (millis() - startTime < PTTdurationForSWRmeterInMs)
             {
                 // Send the CIV command to get SWR
@@ -673,11 +667,11 @@ void loop()
                 // Serial.println(swr);
 
                 SWR_drawSWRBar(swr);
-                //Serial.println(testSWR);
+                // Serial.println(testSWR);
 
-                //SWR_drawSWRBar(testSWR);
+                // SWR_drawSWRBar(testSWR);
 
-                //testSWR = testSWR + .1;
+                // testSWR = testSWR + .1;
 
                 delay(25); // Control the update rate
             }
@@ -1704,8 +1698,6 @@ void showWiFiwidget(int x, int y, int radius, float sizePercentage, int rssi)
     tft.setTextColor(TFT_GREEN);
     tft.print("RF link Quality");
 
-    static int previousRSSILevel = -1; // Track the previous RSSI level to avoid unnecessary redraws
-
     // Function to convert degrees to radians
     auto degToRad = [](float deg)
     {
@@ -1753,16 +1745,13 @@ void showWiFiwidget(int x, int y, int radius, float sizePercentage, int rssi)
     else
         rssiLevel = 0; // Very weak or no signal
 
-    if (rssiLevel == previousRSSILevel)
-        return; // If RSSI level hasn't changed, do nothing
-
     // Scale the radius by the provided sizePercentage
     int scaledRadius = radius * (sizePercentage / 100.0);
 
     // Define color for active and inactive sectors
     uint16_t activeColor = TFT_GREEN;
     uint16_t inactiveColor = TFT_DARKGREY;
-
+    int previousRSSILevel = -1; // modified from original MASTER
     // Update only the sectors that have changed
     for (int i = 1; i <= 4; i++)
     {
@@ -1787,18 +1776,13 @@ void showWiFiwidget(int x, int y, int radius, float sizePercentage, int rssi)
             }
         }
     }
-
-    // Update the previous RSSI level
-    previousRSSILevel = rssiLevel;
-
     // Display the dB level below the icon
     tft.setFreeFont(FMB18);                 // Set small font size
     tft.setTextColor(TFT_WHITE, TFT_BLACK); // White text with black background to clear previous text
     tft.setCursor(x - 33, y + 53);          // Position the text below the Wi-Fi icon
-
-    tft.printf("%d", rssi);        // Print the RSSI value in dBm
-    tft.setCursor(x - 33, y + 80); // Position the text below the Wi-Fi icon
-    tft.printf("dBm");             // Print the RSSI value in dBm
+    tft.printf("%d", rssi);                 // Print the RSSI value in dBm
+    tft.setCursor(x - 33, y + 80);          // Position the text below the Wi-Fi icon
+    tft.printf("dBm");                      // Print the RSSI value in dBm
 }
 
 // SWR _--------------------------------------------------------
