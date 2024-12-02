@@ -411,6 +411,8 @@ void loop()
             delay(2000);
             tft.fillScreen(TFT_BLACK); // Set background to black
 
+            frequencyDisplaystoBeRedrawn = true; // in case of a reconnection
+
             // Update the Wi-Fi icon based on the new RSSI level
             updateWiFiWidget(60, 50, 70, 50, WiFi.RSSI());
             initButtonsOnMainPage();
@@ -421,11 +423,11 @@ void loop()
             delay(80);
 
             // display fake value to initiate
-            frequencyDisplaystoBeRedrawn = true; // in case of a reconnection
             displayVFOfrequency(1111111111, 160, 20, VFOFrequDisplayColor);
             displayVFOfrequency(CurrentVFOFrequency, 160, 20, VFOFrequDisplayColor);
-            GetTunedStatusFromSlave(); // to get current stepper pos and theoretical resonance freq
-
+            GetTunedStatusFromSlave();           // to get current stepper pos and theoretical resonance freq
+            frequencyDisplaystoBeRedrawn = true; // in case of a reconnection
+            allStepperInfotoBeRedrawn = true;    // in case of a reconnection
             // display fake value to initiate
             displayRESONANCEfrequency(1111111111, 160, 130, ResonanceFrequDisplayColor);
             displayRESONANCEfrequency(theoreticalResonanceFrequency, 160, 130, ResonanceFrequDisplayColor);
@@ -880,7 +882,10 @@ void displayRESONANCEfrequency(long freq, int x, int y, uint16_t colour)
 void updateWiFiWidget(int x, int y, int radius, float sizePercentage, int rssi)
 {
     static int previousRSSILevel = -1; // Track the previous RSSI level to avoid unnecessary redraws
-
+    if (frequencyDisplaystoBeRedrawn)
+    { // in case of a reconnection
+        previousRSSILevel = -1;
+    }
     // Function to convert degrees to radians
     auto degToRad = [](float deg)
     {
@@ -1894,19 +1899,15 @@ void getStepperPositionForCurrentVFOfrequency(uint32_t currentVFOfrequency)
 
     static uint64_t prev_freq = 0;
 
-    if (currentVFOfrequency != prev_freq)
+    if (currentVFOfrequency != prev_freq || allStepperInfotoBeRedrawn)
 
     {
-        // force_getStepperPositionForCurrentVFOfrequency=false;
-
         const int maxRetries = 5;    // Maximum number of retries
         const int retryDelay = 1000; // Delay between retries in milliseconds
         int attempts = 0;
         bool success = false;
-
         while (attempts < maxRetries && !success)
         {
-
             attempts++;
             Serial.printf("\nAttempt %d: Sending command to Slave to get theoretical stepper position for vfo frequency\n", attempts);
             String response = sendCommandToSlave("getStepperPositionForCurrentVFOfrequency", String(currentVFOfrequency));
@@ -1939,7 +1940,6 @@ void getStepperPositionForCurrentVFOfrequency(uint32_t currentVFOfrequency)
                         {
                             drawBlackRectangleToErasePortionOfScreen(150, 250, 480, 320);
                             allStepperInfotoBeRedrawn = true;
-
                             backInRange = true;
                         }
                         displayStepperInfo(150, 250, currentStepperPosition, deltaSteps);
@@ -1951,13 +1951,10 @@ void getStepperPositionForCurrentVFOfrequency(uint32_t currentVFOfrequency)
 
                         if (backInRange == false)
                         {
-
                             drawBlackRectangleToErasePortionOfScreen(150, 250, 480, 320);
-
                             backInRange = true;
                             allStepperInfotoBeRedrawn = true;
                         }
-
                         displayStepperInfo(150, 250, currentStepperPosition, deltaSteps);
                     }
                     else
@@ -1966,10 +1963,8 @@ void getStepperPositionForCurrentVFOfrequency(uint32_t currentVFOfrequency)
                         freqIsOutOfRange = true;
                         backInRange = false;
                     }
-
                     success = true;
                 }
-
                 else
                 {
                     Serial.println("Unexpected response format.");
