@@ -527,7 +527,7 @@ void loop()
             printOnTFT("Connection to BLE Server is OK!", TFT_GREEN, TFT_BLACK);
             printOnTFT("        We can start !!!", TFT_GREEN, TFT_BLACK);
             delay(1000);
-            showWiFiwidget(160, 130, 100, 100, WiFi.RSSI());
+            showWiFiwidget(160, 145, 100, 100, WiFi.RSSI());
             delay(2500);
             tft.fillScreen(TFT_BLACK); // Set background to black
             //   getting VFO frequency for th e1st time
@@ -1785,7 +1785,7 @@ void showWiFiwidget(int x, int y, int radius, float sizePercentage, int rssi)
     tft.printf("dBm");                      // Print the RSSI value in dBm
 }
 
-// SWR _--------------------------------------------------------
+// SWR --------------------------------------------------------
 
 // Function to draw tick marks and labels for SWR values (1.0, 1.2, 1.5, 2.0, 2.5, 3.0, 4.0)
 void SWR_drawTicksAndLabels()
