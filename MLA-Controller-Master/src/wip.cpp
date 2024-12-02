@@ -141,6 +141,7 @@ bool PTTisPressed = false;
 
 //
 bool allStepperInfotoBeRedrawn = true;
+bool frequencyDisplaystoBeRedrawn = true;
 bool freqIsOutOfRange = false;
 // bool DisplayAndManageMainPage = true;
 // bool DisplayKeyPadPage = false;
@@ -340,13 +341,6 @@ void setup()
     Serial.printf("Chip revision: %d\n", chip_info.revision);
 
     establish_WIFI_connection_with_Slave();
-    // Call the function 10 times with a 1-second interval
-    /*
-       for (int i = 0; i < 100000; i++) {
-           Serial.println(isSlaveConnected());
-           delay(0); // Wait for 1 second (1000 milliseconds)
-       }
-   */
 
     Serial.println("Scanning for Bluetooth devices");
     printOnTFT("Scanning for Bluetooth devices", TFT_WHITE, TFT_BLACK); // Print the message on the TFT display
@@ -427,6 +421,7 @@ void loop()
             delay(80);
 
             // display fake value to initiate
+            frequencyDisplaystoBeRedrawn = true; // in case of a reconnection
             displayVFOfrequency(1111111111, 160, 20, VFOFrequDisplayColor);
             displayVFOfrequency(CurrentVFOFrequency, 160, 20, VFOFrequDisplayColor);
             GetTunedStatusFromSlave(); // to get current stepper pos and theoretical resonance freq
@@ -680,11 +675,11 @@ void displayVFOfrequency(long freq, int x, int y, uint16_t colour)
     static bool isInitialized = false;          // Flag to ensure initialization only happens once
 
     // Initialize previousDisplayedfrequency only on the first function call
-    if (!isInitialized)
+    if (!isInitialized || frequencyDisplaystoBeRedrawn)
     {
         strcpy(previousDisplayedfrequency, "0000000000"); // Initialize with the default placeholder value
         isInitialized = true;                             // Set the flag to true to prevent future initialization
-
+        frequencyDisplaystoBeRedrawn = false;
         // Draw the frame only during initialization
         int charWidth = tft.textWidth("00.000.000");
         int frameWidth = charWidth + 20;          // Increase padding for a larger frame
@@ -785,10 +780,11 @@ void displayRESONANCEfrequency(long freq, int x, int y, uint16_t colour)
     static bool isInitialized = false;          // Flag to ensure initialization only happens once
 
     // Initialize previousDisplayedfrequency only on the first function call
-    if (!isInitialized)
+    if (!isInitialized || frequencyDisplaystoBeRedrawn)
     {
         strcpy(previousDisplayedfrequency, "0000000000"); // Initialize with the default placeholder value
         isInitialized = true;                             // Set the flag to true to prevent future initialization
+        frequencyDisplaystoBeRedrawn = false;
 
         // Draw the frame only during initialization
         int charWidth = tft.textWidth("00.000.000");

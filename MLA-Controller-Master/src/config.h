@@ -11,7 +11,6 @@ const bool drawLinearSWRmeterInsteadOfLogarithmic = true;
 const int PTTdurationForSWRmeterInMs = 1000;
 
 
-
 const int VFOFrequDisplayColor = 2016; 
 const int ResonanceFrequDisplayColor = 16766720; 
 
