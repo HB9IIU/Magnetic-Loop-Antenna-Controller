@@ -1,0 +1,49 @@
+// config.h
+#ifndef CONFIG_H
+#define CONFIG_H
+
+//  Define version and date as constants
+const char *VERSION = "1.0";
+const char *RELEASE_DATE = "November 2024";
+const bool drawLinearSWRmeterInsteadOfLogarithmic = true;
+
+
+const int PTTdurationForSWRmeterInMs = 1000;
+
+
+
+const int VFOFrequDisplayColor = 2016; 
+const int ResonanceFrequDisplayColor = 16766720; 
+
+
+#endif // CONFIG_H
+
+/*
+Color	Hex Value
+BLACK	0
+NAVY	15
+DARKGREEN	992
+DARKCYAN	1007
+MAROON	30720
+PURPLE	30735
+OLIVE	31712
+LIGHTGREY	54938
+DARKGREY	42569
+BLUE	31
+GREEN	2016
+CYAN	2047
+RED	63488
+MAGENTA	63519
+YELLOW	65504
+WHITE	65535
+ORANGE	64800
+GREENYELLOW	41727
+PINK	63519
+LIGHTBLUE	11393254
+LIME	2047
+TOMATO	16737095
+VIOLET	32512
+TAN	13808780
+BEIGE	16119260
+
+*/

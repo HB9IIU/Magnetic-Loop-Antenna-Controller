@@ -38,13 +38,9 @@
 //
 // Housing: https://github.com/HB9IIU/MLA-Controller-Master
 // ########################################################################################
-//  Define version and date as constants
-const char *VERSION = "1.0";
-const char *RELEASE_DATE = "November 2024";
-const bool drawLinearSWRmeterInsteadOfLogarithmic = true;
-const int PTTdurationForSWRmeterInMs = 1000;
-// ########################################################################################
 
+// ########################################################################################
+#include "config.h"
 #include <Arduino.h>
 #include <TFT_eSPI.h>      // Include the TFT_eSPI library
 TFT_eSPI tft = TFT_eSPI(); // Initialize the TFT display
@@ -231,6 +227,7 @@ unsigned long convertBufferToNumber(char *buffer);
 int drawTextWithWordWrap(const char *text, int x, int y, int maxX, int lineHeight);
 void checkKeypadPage();
 void displayWelcomeScreen(int duration, const char *version, const char *date);
+void displayWelcomeScreenSimple(int duration, const char *version, const char *date);
 void setNewStepperPosToSlavePreferencesForGivenFrequency(uint32_t newVFOFrequency);
 void displayRebootingMessageScreen();
 //
@@ -309,11 +306,6 @@ void setup()
     pinMode(TFT_BLP, OUTPUT);    // Configure the backlight pin
     digitalWrite(TFT_BLP, HIGH); // Turn on the backlight
 
-    Serial.println("Sketch Size: " + String(ESP.getSketchSize()) + " bytes");
-    Serial.println("Free Sketch Space: " + String(ESP.getFreeSketchSpace()) + " bytes");
-    Serial.println("Flash Chip Size: " + String(ESP.getFlashChipSize() / 1024 / 1024) + " MB");
-    Serial.println("Flash Frequency: " + String(ESP.getFlashChipSpeed() / 1000000) + " MHz");
-
     tft.begin();               // Initialize the TFT display
     tft.fillScreen(TFT_BLACK); // Set background to black
                                // tft.fillScreen(TFT_WHITE); // Set background to black
@@ -322,11 +314,21 @@ void setup()
 
     calibrateTouchDisplay();
 
-    if (WROOM32U != true)
+    if (WROOM32U == true)
     { // because we have memory issues to display welcome with th U
-        displayWelcomeScreen(2000, "1.0", "November 2024");
+        displayWelcomeScreenSimple(1500, VERSION, RELEASE_DATE);
     }
+    else
+    {
+        displayWelcomeScreen(1500, VERSION, RELEASE_DATE);
+    }
+
     printOnTFT("HB9IIU MLA Controller Starting", TFT_WHITE, TFT_BLACK);
+
+    Serial.println("Sketch Size: " + String(ESP.getSketchSize()) + " bytes");
+    Serial.println("Free Sketch Space: " + String(ESP.getFreeSketchSpace()) + " bytes");
+    Serial.println("Flash Chip Size: " + String(ESP.getFlashChipSize() / 1024 / 1024) + " MB");
+    Serial.println("Flash Frequency: " + String(ESP.getFlashChipSpeed() / 1000000) + " MHz");
 
     // Print chip model
     esp_chip_info_t chip_info;
@@ -336,8 +338,6 @@ void setup()
     Serial.printf("Number of cores: %d\n", chip_info.cores);
     // Print chip revision
     Serial.printf("Chip revision: %d\n", chip_info.revision);
-    // Print flash size
-    Serial.printf("Flash size: %dMB\n", spi_flash_get_chip_size() / (1024 * 1024));
 
     establish_WIFI_connection_with_Slave();
     // Call the function 10 times with a 1-second interval
@@ -427,13 +427,13 @@ void loop()
             delay(80);
 
             // display fake value to initiate
-            displayVFOfrequency(1111111111, 160, 20, TFT_CYAN);
-            displayVFOfrequency(CurrentVFOFrequency, 160, 20, TFT_CYAN);
+            displayVFOfrequency(1111111111, 160, 20, VFOFrequDisplayColor);
+            displayVFOfrequency(CurrentVFOFrequency, 160, 20, VFOFrequDisplayColor);
             GetTunedStatusFromSlave(); // to get current stepper pos and theoretical resonance freq
 
             // display fake value to initiate
-            displayRESONANCEfrequency(1111111111, 160, 130, TFT_GREEN);
-            displayRESONANCEfrequency(theoreticalResonanceFrequency, 160, 130, TFT_GREEN);
+            displayRESONANCEfrequency(1111111111, 160, 130, ResonanceFrequDisplayColor);
+            displayRESONANCEfrequency(theoreticalResonanceFrequency, 160, 130, ResonanceFrequDisplayColor);
         }
         else
         {
@@ -449,8 +449,8 @@ void loop()
         if (weAreInTheMainPage == true)
         {
             // updating wifi widget every 5 seconds only
-            unsigned long currentMillis = millis();           
-            if (currentMillis - previousMillisForWiFiStrengthCheck >= 5000) 
+            unsigned long currentMillis = millis();
+            if (currentMillis - previousMillisForWiFiStrengthCheck >= 5000)
             {
                 previousMillisForWiFiStrengthCheck = currentMillis;
                 Serial.print("Updating Wifi widget: ");
@@ -482,7 +482,7 @@ void loop()
             uint8_t CIV_PTT_Status[] = {0xFE, 0xFE, radio_address, 0xE0, 0x1C, 0x00, 0xFD};
             pRXCharacteristic->writeValue(CIV_PTT_Status, sizeof(CIV_PTT_Status));
             delay(10);
-            displayVFOfrequency(CurrentVFOFrequency, 160, 20, TFT_CYAN);
+            displayVFOfrequency(CurrentVFOFrequency, 160, 20, VFOFrequDisplayColor);
             getStepperPositionForCurrentVFOfrequency(CurrentVFOFrequency);
 
             // Scanning touchscreen to detect interaction
@@ -1755,7 +1755,7 @@ void TuneOnDoublePTTclick()
     setNewPositionForCurrentVFOfrequency(CurrentVFOFrequency);
     GetTunedStatusFromSlave(); // just to get the new stepper position
     // cheating a bit because GetTunedStatusFromSlave will return a slightly different value of couple of Hz
-    displayRESONANCEfrequency(CurrentVFOFrequency, 160, 130, TFT_GREEN);
+    displayRESONANCEfrequency(CurrentVFOFrequency, 160, 130, ResonanceFrequDisplayColor);
     deltaSteps = 0;
     displayStepperInfo(150, 250, currentStepperPosition, deltaSteps);
     buttonFT8onMainPage.drawSmoothButton(false, 2, TFT_BLACK); // 2 is outline width
@@ -2393,10 +2393,6 @@ void checkKeypadPage()
 
 void displayWelcomeScreen(int duration, const char *version, const char *date)
 {
-    // Initialize the TFT display
-    // tft.begin();
-    // tft.setRotation(1);        // Set the rotation if needed
-    // tft.fillScreen(TFT_BLACK); // Clear the screen
 
     // Center coordinates
     int centerX = tft.width() / 2;  // X coordinate of the center
@@ -2514,6 +2510,49 @@ void displayWelcomeScreen(int duration, const char *version, const char *date)
     tft.setCursor(xController, TEXT_Y_CONTROLLER);
     tft.print("HB9IIU MLA CONTROLLER");
     tft.setFreeFont(&FreeMonoBold12pt7b);
+    tft.setCursor(xVersion, TEXT_Y_VERSION);
+    tft.print(versionText);
+    tft.setCursor(xDate, TEXT_Y_VERSION + 50);
+    tft.print(versionDate);
+
+    // Delay before clearing the screen
+    delay(1500);
+    tft.fillScreen(TFT_BLACK); // Clear the screen
+}
+
+void displayWelcomeScreenSimple(int duration, const char *version, const char *date)
+{
+
+    // Text Y positions
+    const int TEXT_Y_WELCOME = 80;
+    const int TEXT_Y_CONTROLLER = 140;
+    const int TEXT_Y_VERSION = 200;
+
+    // Draw the splash screen text
+    tft.setFreeFont(&FreeMonoBold18pt7b);
+    tft.setTextColor(TFT_GOLD);
+    int xWelcome = (tft.width() - tft.textWidth("Welcome To")) / 2;
+    tft.setCursor(xWelcome, TEXT_Y_WELCOME);
+    tft.print("Welcome To");
+
+    int xController = (tft.width() - tft.textWidth("HB9IIU MLA CONTROLLER")) / 2;
+    tft.setCursor(xController, TEXT_Y_CONTROLLER);
+    tft.print("HB9IIU MLA CONTROLLER");
+
+    // Format the version string
+    char versionText[50];
+    snprintf(versionText, sizeof(versionText), "Version %s", version);
+
+    // Format the date string
+    char versionDate[50];
+    snprintf(versionDate, sizeof(versionDate), "%s", date);
+
+    // Set font for the version number and date
+    tft.setFreeFont(&FreeMonoBold12pt7b);
+    int xVersion = (tft.width() - tft.textWidth(versionText)) / 2;
+    int xDate = (tft.width() - tft.textWidth(versionDate)) / 2;
+
+    // Draw version and date text
     tft.setCursor(xVersion, TEXT_Y_VERSION);
     tft.print(versionText);
     tft.setCursor(xDate, TEXT_Y_VERSION + 50);
