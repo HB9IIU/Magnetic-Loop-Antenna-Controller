@@ -843,9 +843,9 @@ void displayVFOfrequency(unsigned long frequency, int startX, int yPosition, boo
     constexpr const char *dialLabel = "  VFO Frequency  ";
     constexpr int deadSegmentColor = 0x4208; // RGB(66, 66, 66) - Medium dark gray  0x630C
     // constexpr int darkGrey = 0x4208; // RGB(33, 33, 33) - A very dark gray
-    // constexpr int darkGrey2 = 0x528A; // RGB(50, 50, 50) - Slightly lighter dark gray
-    constexpr int darkGrey = 0x8410; // RGB(100, 100, 100) - The lightest of the dark grays
-                                     // constexpr int darkGrey4 = 0x738E; // RGB(83, 83, 83) - Lighter medium gray
+    constexpr int darkGrey = 0x528A; // RGB(50, 50, 50) - Slightly lighter dark gray
+                                     // constexpr int darkGrey = 0x8410; // RGB(100, 100, 100) - The lightest of the dark grays
+    // constexpr int darkGrey = 0x738E; // RGB(83, 83, 83) - Lighter medium gray
 
     tft.setFreeFont(&Digital_7Mono40pt7b);
     if (!isInitiated || forceRedraw)
@@ -990,10 +990,10 @@ void displayRESONANCEfrequency(unsigned long frequency, int startX, int yPositio
     constexpr int digitColor = TFT_CYAN;
     constexpr const char *dialLabel = "  Resonance Frequency  ";
     constexpr int deadSegmentColor = 0x4208; // RGB(66, 66, 66) - Medium dark gray  0x630C
-    constexpr int darkGrey = 0x4208;         // RGB(33, 33, 33) - A very dark gray
-    // constexpr int darkGrey2 = 0x528A; // RGB(50, 50, 50) - Slightly lighter dark gray
+    // constexpr int darkGrey = 0x4208;         // RGB(33, 33, 33) - A very dark gray
+    constexpr int darkGrey = 0x528A; // RGB(50, 50, 50) - Slightly lighter dark gray
     // constexpr int darkGrey = 0x8410; // RGB(100, 100, 100) - The lightest of the dark grays
-    // constexpr int darkGrey4 = 0x738E; // RGB(83, 83, 83) - Lighter medium gray
+    // constexpr int darkGrey = 0x738E; // RGB(83, 83, 83) - Lighter medium gray
 
     tft.setFreeFont(&Digital_7Mono40pt7b);
 
@@ -1112,6 +1112,13 @@ void displayRESONANCEfrequency(unsigned long frequency, int startX, int yPositio
 
             // Update previous digit array
             previousFrequArr[i] = frequArr[i];
+        }
+        if (frequency < 10000000)
+        {
+            // Draw the 1st switched OFF digit
+            tft.setTextColor(darkGrey);
+            tft.setCursor(xPositions[0], yPosition);
+            tft.print('8');
         }
     }
 }
@@ -2246,7 +2253,7 @@ bool VFOfrequencyIsInAdmissibleRange(unsigned long frequency)
 {
     // Define frequency ranges for 40m and 20m bands
     const unsigned long LOWER_40M = 7000000;  // Replace with actual lower bound of 40m band
-    const unsigned long UPPER_40M = 7300000;  // Replace with actual upper bound of 40m band
+    const unsigned long UPPER_40M = 7200000;  // Replace with actual upper bound of 40m band
     const unsigned long LOWER_20M = 14000000; // Replace with actual lower bound of 20m band
     const unsigned long UPPER_20M = 14350000; // Replace with actual upper bound of 20m band
 
@@ -2423,9 +2430,9 @@ void loop()
         {
             // Handle WebSocket communication
             webSocket.loop();
-            
-                displayLogarithmicSWRMeter(currentSWR);
-           
+
+            displayLogarithmicSWRMeter(currentSWR);
+
             Serial.println(currentSWR);
             delay(200);
         }
