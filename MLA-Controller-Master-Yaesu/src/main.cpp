@@ -48,6 +48,7 @@ uint32_t deltaSteps = 0;                   // diff between current stepper posit
 unsigned long lastVFOfrequencyChangeTime;
 bool allStepperInfotoBeRedrawn = false;
 bool forceRedwrawOutofRangeWarning = true;
+bool SWRtest = false;
 // long estimated_movement_duration_in_microseconds;
 
 // MILLIS related
@@ -72,6 +73,7 @@ void drawVariableCapacitor(int x, int y, float scale, uint16_t color);
 String formatStepsToGoForConsole(int32_t value);
 void setNewPositionForCurrentVFOfrequency(uint32_t targetFrequency);
 bool VFOfrequencyIsInAdmissibleRange(unsigned long frequency);
+bool redraw_swr = false;
 // bool freqIsOutOfRange = false;
 // bool freqBackInRange = true;
 // bool allStepperInfotoBeRedrawn = false;
@@ -491,15 +493,15 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
             Serial.printf("Parsed VFOFrequency: %lu\n", CurrentVFOFrequency);
         }
 
-        if (doc["currentSWR"].is<float>())
+        if (doc["SWR"].is<float>())
         {
-            currentSWR = doc["currentSWR"].as<float>();
-            Serial.printf("Parsed currentSWR: %.2f\n", currentSWR);
+            currentSWR = doc["SWR"].as<float>();
+            Serial.printf("Parsed SWR: %.2f\n", currentSWR);
         }
         else
         {
             currentSWR = 0.0; // Default currentSWR if null or not present
-            Serial.println("Parsed currentSWR: 0.00 (default)");
+            Serial.println("Parsed SWR: 1.00 (default)");
         }
 
         if (doc["PTTStatus"].is<const char *>())
@@ -518,7 +520,7 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
 }
 
 // Function to send commands to the WebSocket server
-void sendCommandToPython(String command)
+void sendCommandToCATserver(String command)
 {
     if (connectedToSocket)
     {
@@ -535,7 +537,7 @@ void sendCommandToPython(String command)
 void setTX(bool status)
 {
     String command = "setTX:" + String(status ? 1 : 0); // Convert boolean to 1/0
-    sendCommandToPython(command);
+    sendCommandToCATserver(command);
 }
 
 // Function to set power level
@@ -547,7 +549,7 @@ void setPower(int power)
         return;
     }
     String command = "setPower:" + String(power);
-    sendCommandToPython(command);
+    sendCommandToCATserver(command);
 }
 
 // Function to set mode
@@ -570,9 +572,14 @@ void setMode(String mode)
         Serial.println("Invalid mode. Please use a valid mode.");
         return;
     }
+    else
+    {
+        Serial.println("Setting mode to:");
+        Serial.println(mode);
+    }
 
     String command = "setMode:" + mode;
-    sendCommandToPython(command);
+    sendCommandToCATserver(command);
 }
 
 // Function to set frequency
@@ -584,7 +591,7 @@ void setFrequ(long frequ)
         return;
     }
     String command = "setFrequ:" + String(frequ);
-    sendCommandToPython(command);
+    sendCommandToCATserver(command);
 }
 //-------------------- ENF OF WEB SOCKET RELATED  ----------------------------------------------
 
@@ -1115,7 +1122,7 @@ void displaySetMode(String mode, int x, int y, uint16_t fontColor, uint16_t rect
     static String lastCurrentModeName; // Will store the current mode value
 
     // skip if same
-    if (currentModeName == lastCurrentModeName && redraw==false)
+    if (currentModeName == lastCurrentModeName && redraw == false)
     {
         return;
     }
@@ -1618,10 +1625,271 @@ void displayProgressBar(int x, int y, int givenWidth, int height, int duration)
     Serial.print((long)totalElapsedTime - duration);
     Serial.println(" ms");
 
-        // Clear the area for the progress bar
+    // Clear the area for the progress bar
     tft.fillRect(0, 220, 480, 320 - 200, TFT_BLACK);
 }
+void displayLinearSWRMeter(float swr_value)
+{
+    static bool first_draw = true;                                                                 // Ensure initial setup happens only once
+    static const int SEGMENT_WIDTH = 14;                                                           // Width of each segment
+    static const int SEGMENT_GAP = 1;                                                              // Gap between segments
+    static const int SEGMENT_HEIGHT = 40;                                                          // Height of each segment
+    static const int METER_X = 20;                                                                 // X position of the top-left corner of the meter
+    static const int TICK_LENGTH = 15;                                                             // Adjustable length of tick marks
+    static const int NUM_SEGMENTS = 25;                                                            // Number of segments in the SWR meter
+    static const int METER_Y = 320 - SEGMENT_HEIGHT - TICK_LENGTH - 38;                            // Y position dynamically calculated
+    static const int FULL_WIDTH = NUM_SEGMENTS * SEGMENT_WIDTH + (NUM_SEGMENTS - 1) * SEGMENT_GAP; // Total width of the meter
+    static float previous_swr_value = -1.0;                                                        // Store the previous SWR value for optimization
+    static const uint16_t SWR_COLOR_BG = TFT_BLACK;
+    tft.setTextDatum(TL_DATUM); // Set to top-left (default, equivalent to 0)
 
+    // Helper function for gradient color interpolation
+    auto interpolateColor = [](uint16_t color1, uint16_t color2, float factor) -> uint16_t
+    {
+        uint8_t r1 = (color1 >> 11) & 0x1F;
+        uint8_t g1 = (color1 >> 5) & 0x3F;
+        uint8_t b1 = color1 & 0x1F;
+
+        uint8_t r2 = (color2 >> 11) & 0x1F;
+        uint8_t g2 = (color2 >> 5) & 0x3F;
+        uint8_t b2 = color2 & 0x1F;
+
+        uint8_t r = r1 + (r2 - r1) * factor;
+        uint8_t g = g1 + (g2 - g1) * factor;
+        uint8_t b = b1 + (b2 - b1) * factor;
+
+        return (r << 11) | (g << 5) | b;
+    };
+
+    // Initial static elements
+    if (first_draw || redraw_swr)
+    {
+        tft.fillRect(0, METER_Y - 5, 480, 320 - METER_Y, SWR_COLOR_BG); // Clear area
+
+        tft.drawRect(METER_X - 1, METER_Y - 1, FULL_WIDTH + 2, SEGMENT_HEIGHT + 2, TFT_WHITE);
+
+        // Draw tick marks and labels
+        float tick_values[] = {1.0, 1.5, 2.0, 2.5, 3.0, 3.5};
+        int tick_count = sizeof(tick_values) / sizeof(tick_values[0]);
+        for (int i = 0; i < tick_count; i++)
+        {
+            int tick_position = METER_X + (int)((tick_values[i] - 1.0) * 10 * (SEGMENT_WIDTH + SEGMENT_GAP));
+            tft.drawFastVLine(tick_position, METER_Y + SEGMENT_HEIGHT + 1, TICK_LENGTH, TFT_WHITE);
+            tft.setTextColor(TFT_WHITE, SWR_COLOR_BG);
+            tft.setFreeFont(&FreeMonoBold9pt7b);
+            tft.drawString(String(tick_values[i], 1), tick_position - 17, METER_Y + SEGMENT_HEIGHT + TICK_LENGTH + 5);
+        }
+        first_draw = false;
+        redraw_swr = false;
+    }
+
+    // Calculate active segments based on SWR value
+    int active_segments = min((int)((swr_value - 1.0) * 10), NUM_SEGMENTS);
+
+    // Gradient color points
+    uint16_t color_start = TFT_GREEN; // Safe range
+    uint16_t color_mid = TFT_YELLOW;  // Warning range
+    uint16_t color_end = TFT_RED;     // Danger range
+
+    // Draw the segments with gradient colors
+    for (int i = 0; i < NUM_SEGMENTS; i++)
+    {
+        int x = METER_X + i * (SEGMENT_WIDTH + SEGMENT_GAP);
+
+        // Determine color based on gradient
+        float factor;
+        uint16_t color;
+        if (i < NUM_SEGMENTS / 2)
+        { // Green to Yellow
+            factor = (float)i / (NUM_SEGMENTS / 2);
+            color = interpolateColor(color_start, color_mid, factor);
+        }
+        else
+        { // Yellow to Red
+            factor = (float)(i - NUM_SEGMENTS / 2) / (NUM_SEGMENTS / 2);
+            color = interpolateColor(color_mid, color_end, factor);
+        }
+
+        // Draw or clear the segment
+        if (i < active_segments)
+        {
+            tft.fillRect(x, METER_Y, SEGMENT_WIDTH, SEGMENT_HEIGHT, color);
+        }
+        else
+        {
+            tft.fillRect(x, METER_Y, SEGMENT_WIDTH, SEGMENT_HEIGHT, SWR_COLOR_BG);
+        }
+    }
+
+    // Display the SWR value as dynamic text
+    int value_x = METER_X + FULL_WIDTH + 10;
+    int value_y = METER_Y + 8;
+
+    // Erase the previous SWR value
+    tft.setTextColor(SWR_COLOR_BG, SWR_COLOR_BG);
+    tft.setFreeFont(&FreeMonoBold18pt7b);
+    tft.drawString(String(previous_swr_value, 1), value_x, value_y);
+
+    // Determine text color based on SWR value
+    uint16_t swr_color = (swr_value < 2.0) ? TFT_GREEN : (swr_value < 3.0) ? TFT_YELLOW
+                                                                           : TFT_RED;
+
+    // Draw the new SWR value
+    tft.setTextColor(swr_color, SWR_COLOR_BG);
+    tft.drawString(String(swr_value, 1), value_x, value_y);
+
+    // Update the previous SWR value
+    previous_swr_value = swr_value;
+}
+
+void displayLogarithmicSWRMeter(float swr_value)
+{
+    static bool first_draw = true;
+    static const int SWR_BAR_X = 20;       // X position of the bar
+    static const int SWR_BAR_Y = 228;      // Y position of the bar
+    static const int SWR_BAR_WIDTH = 380;  // Width of the bar
+    static const int SWR_BAR_HEIGHT = 40;  // Height of the bar
+    static const int SWR_TICK_HEIGHT = 10; // Height of tick marks
+    static const int SEGMENT_WIDTH = 8;    // Width of the segments
+
+    static const uint16_t SWR_COLOR_GOOD = TFT_GREENYELLOW;
+    static const uint16_t COLOR_WARNING = TFT_ORANGE;
+    static const uint16_t COLOR_DANGER = TFT_RED;
+    static const uint16_t SWR_COLOR_BG = TFT_BLACK;
+    static const uint16_t SWR_COLOR_TICK = TFT_WHITE;
+    static const uint16_t SEGMENT_COLOR = TFT_WHITE;
+    static const uint16_t SEGMENT_COLOR_BLACK = TFT_BLACK;
+
+    static float previous_swr_value = -1.0;
+    tft.setTextDatum(TL_DATUM); // Set to top-left (default, equivalent to 0)
+
+    // Helper function for color interpolation
+    auto interpolateColor = [](uint16_t color1, uint16_t color2, float factor) -> uint16_t
+    {
+        uint8_t r1 = (color1 >> 11) & 0x1F;
+        uint8_t g1 = (color1 >> 5) & 0x3F;
+        uint8_t b1 = color1 & 0x1F;
+
+        uint8_t r2 = (color2 >> 11) & 0x1F;
+        uint8_t g2 = (color2 >> 5) & 0x3F;
+        uint8_t b2 = color2 & 0x1F;
+
+        uint8_t r = r1 + (r2 - r1) * factor;
+        uint8_t g = g1 + (g2 - g1) * factor;
+        uint8_t b = b1 + (b2 - b1) * factor;
+
+        return (r << 11) | (g << 5) | b;
+    };
+
+    // Helper function to apply logarithmic scaling
+    auto applyLogarithmicScale = [](float swr_value) -> float
+    {
+        if (swr_value > 4.0)
+            swr_value = 4.0;
+        if (swr_value < 1.0)
+            swr_value = 1.0;
+        float log_swr_min = log10(1.0);
+        float log_swr_max = log10(4.0);
+        return (log10(swr_value) - log_swr_min) / (log_swr_max - log_swr_min);
+    };
+
+    // Helper function to map SWR to bar length
+    auto mapSWRToBarLength = [&](float swr_value) -> int
+    {
+        float log_swr_scaled = applyLogarithmicScale(swr_value);
+        return log_swr_scaled * SWR_BAR_WIDTH;
+    };
+
+    if (first_draw || redraw_swr)
+    {
+        // erase area
+        tft.fillRect(0, SWR_BAR_Y - 5, 480, 320 - SWR_BAR_Y + 5, SWR_COLOR_BG);
+
+        float tick_values[] = {1.0, 1.2, 1.5, 2.0, 2.5, 3.0, 4.0};
+        int num_ticks = sizeof(tick_values) / sizeof(tick_values[0]);
+
+        for (int i = 0; i < num_ticks; i++)
+        {
+            float log_swr_scaled = applyLogarithmicScale(tick_values[i]);
+            int tick_x = SWR_BAR_X + (log_swr_scaled * SWR_BAR_WIDTH);
+            tft.drawLine(tick_x, SWR_BAR_Y + SWR_BAR_HEIGHT, tick_x, SWR_BAR_Y + SWR_BAR_HEIGHT + SWR_TICK_HEIGHT, SWR_COLOR_TICK);
+            tft.setFreeFont(&FreeMonoBold9pt7b);
+            tft.setTextColor(SWR_COLOR_TICK, SWR_COLOR_BG);
+            tft.drawString(String(tick_values[i], 1), tick_x - 10, SWR_BAR_Y + SWR_BAR_HEIGHT + SWR_TICK_HEIGHT + 5);
+        }
+
+        first_draw = false;
+        redraw_swr = false;
+    }
+
+    int current_length = min(mapSWRToBarLength(swr_value), SWR_BAR_WIDTH);
+    int previous_length = min(mapSWRToBarLength(previous_swr_value), SWR_BAR_WIDTH);
+    int green_length = mapSWRToBarLength(2.0);
+
+    uint16_t color_start = SWR_COLOR_GOOD;
+    uint16_t color_mid = COLOR_WARNING;
+    uint16_t color_end = COLOR_DANGER;
+
+    float position_factor = (swr_value - 1.0) / (4.0 - 1.0);
+    uint16_t text_color = (position_factor <= 0.5)
+                              ? interpolateColor(color_start, color_mid, position_factor * 2)
+                              : interpolateColor(color_mid, color_end, (position_factor - 0.5) * 2);
+
+    tft.setFreeFont(&FreeMonoBold18pt7b);
+    tft.setTextColor(TFT_BLACK, TFT_BLACK);
+    tft.drawString(String(previous_swr_value, 1), SWR_BAR_X + SWR_BAR_WIDTH + 10, SWR_BAR_Y + 8);
+
+    if (swr_value > previous_swr_value)
+    {
+        for (int x = SWR_BAR_X; x < SWR_BAR_X + current_length; x += SEGMENT_WIDTH)
+        {
+            if (x >= SWR_BAR_X + SWR_BAR_WIDTH)
+                break;
+
+            float segment_factor = (float)(x - SWR_BAR_X) / SWR_BAR_WIDTH;
+            uint16_t color = (segment_factor <= 0.5)
+                                 ? interpolateColor(color_start, color_mid, segment_factor * 2)
+                                 : interpolateColor(color_mid, color_end, (segment_factor - 0.5) * 2);
+            tft.fillRect(x, SWR_BAR_Y, SEGMENT_WIDTH, SWR_BAR_HEIGHT, color);
+
+            if (x <= SWR_BAR_X + green_length)
+            {
+                tft.drawLine(x, SWR_BAR_Y, x, SWR_BAR_Y + SWR_BAR_HEIGHT, SEGMENT_COLOR_BLACK);
+            }
+            else
+            {
+                tft.drawLine(x, SWR_BAR_Y, x, SWR_BAR_Y + SWR_BAR_HEIGHT, SEGMENT_COLOR);
+            }
+        }
+    }
+    else if (swr_value < previous_swr_value)
+    {
+        tft.fillRect(SWR_BAR_X + current_length, SWR_BAR_Y, previous_length - current_length, SWR_BAR_HEIGHT, SWR_COLOR_BG);
+
+        for (int x = SWR_BAR_X + current_length + SEGMENT_WIDTH; x <= SWR_BAR_X + previous_length; x += SEGMENT_WIDTH)
+        {
+            if (x >= SWR_BAR_X + SWR_BAR_WIDTH)
+                break;
+            tft.fillRect(x, SWR_BAR_Y, SEGMENT_WIDTH, SWR_BAR_HEIGHT, SWR_COLOR_BG);
+        }
+
+        if (previous_length % SEGMENT_WIDTH != 0)
+        {
+            int last_segment_start = SWR_BAR_X + ((previous_length / SEGMENT_WIDTH) * SEGMENT_WIDTH);
+            if (last_segment_start + SEGMENT_WIDTH > SWR_BAR_X + current_length)
+            {
+                tft.fillRect(last_segment_start, SWR_BAR_Y, SEGMENT_WIDTH, SWR_BAR_HEIGHT, SWR_COLOR_BG);
+            }
+        }
+    }
+
+    tft.drawRect(SWR_BAR_X, SWR_BAR_Y, SWR_BAR_WIDTH, SWR_BAR_HEIGHT, TFT_WHITE);
+
+    tft.setTextColor(text_color, TFT_BLACK);
+    tft.drawString(String(swr_value, 1), SWR_BAR_X + SWR_BAR_WIDTH + 10, SWR_BAR_Y + 8);
+
+    previous_swr_value = swr_value;
+}
 /*
 void displayOutofRangeMessage(int x, int y)
 {
@@ -1806,17 +2074,17 @@ void TuneOnClick()
     }
 
     setNewPositionForCurrentVFOfrequency(CurrentVFOFrequency);
-    //redraw mode
-    Serial.print ("I am here:");
+    // redraw mode
+    Serial.print("I am here:");
     Serial.println(currentModeName);
     GetTunedStatusFromSlave(); // just to get the new stepper position
-    //  cheating a bit because GetTunedStatusFromSlave will return a slightly different value of couple of Hz
+                               //  cheating a bit because GetTunedStatusFromSlave will return a slightly different value of couple of Hz
 
-        displayRESONANCEfrequency(CurrentVFOFrequency, 121, 176, false);
+    displayRESONANCEfrequency(CurrentVFOFrequency, 121, 176, false);
 
     // deltaSteps = 0;
-    displayStepperInfo(150, 260, currentStepperPosition, 0,true);
-    displaySetMode(currentModeName, 52, 236, TFT_WHITE, TFT_LIGHTGREY, 2, false,true);
+    displayStepperInfo(150, 260, currentStepperPosition, 0, true);
+    displaySetMode(currentModeName, 52, 236, TFT_WHITE, TFT_LIGHTGREY, 2, false, true);
 }
 void setNewPositionForCurrentVFOfrequency(uint32_t targetFrequency)
 {
@@ -1842,8 +2110,6 @@ void setNewPositionForCurrentVFOfrequency(uint32_t targetFrequency)
     Serial.println(" microseconds");
     Serial.println("Animating Progress Bar");
     displayProgressBar(20, 250, 435, 50, estimated_movement_duration_in_microseconds);
-
-
 }
 //--------------------------- HELPER FUNCTIONS ------------------------------------
 String formatStepperPosForConsoleOutput(uint32_t value)
@@ -2062,7 +2328,7 @@ void loop()
     static unsigned long lastHeartbeatTime = 0;
     if (millis() - lastHeartbeatTime > 15000 && connectedToSocket)
     {
-        sendCommandToPython("Heartbeat: Hello Slave, I am still here!!!");
+        sendCommandToCATserver("Heartbeat: Hello Slave, I am still here!!!");
         lastHeartbeatTime = millis();
     }
     // Periodically update Wifi widget
@@ -2075,7 +2341,7 @@ void loop()
     }
 
     displayVFOfrequency(CurrentVFOFrequency, 121, 68, false);
-    displaySetMode(currentModeName, 52, 236, TFT_WHITE, TFT_LIGHTGREY, 2, false,false);
+    displaySetMode(currentModeName, 52, 236, TFT_WHITE, TFT_LIGHTGREY, 2, false, false);
     displaySetRFpower(setRFPower, 52, 166, TFT_WHITE, TFT_LIGHTGREY, 2, false);
     displayRXTXstatus(52, 120, PTTstatus);
     displayRESONANCEfrequency(theoreticalResonanceFrequency, 121, 176, false);
@@ -2125,6 +2391,9 @@ void loop()
             {
                 Serial.print("Touch detected at upper third");
 
+                setPower(69);
+                SWRtest = true;
+
                 // SWRtest = true;
             }
             // WiFi Widget
@@ -2134,5 +2403,45 @@ void loop()
             }
         }
         previousMillisForKeypadScan = millis();
+    }
+    if (SWRtest)
+    {
+        unsigned long SWRtestStartTime = millis();
+        uint16_t SWRtestDuration = 4000;
+        int RFpowerNow = setRFPower;
+        String ModeNameNow = currentModeName;
+
+        setPower(5);
+        setRFPower = 5;
+        displaySetRFpower(setRFPower, 52, 166, TFT_WHITE, TFT_LIGHTGREY, 2, false);
+        currentModeName = "FM";
+        setMode(currentModeName);
+        displaySetMode(currentModeName, 52, 236, TFT_WHITE, TFT_LIGHTGREY, 2, false, false);
+        setTX(1);
+        delay(300);
+        while (millis() < SWRtestStartTime + SWRtestDuration)
+        {
+            // Handle WebSocket communication
+            webSocket.loop();
+            
+                displayLogarithmicSWRMeter(currentSWR);
+           
+            Serial.println(currentSWR);
+            delay(200);
+        }
+        setTX(0);
+        SWRtest = false;
+        redraw_swr = true;
+        Serial.print("Setting Mode back to: ");
+        Serial.println(ModeNameNow);
+        setMode(ModeNameNow);
+        setTX(0);
+        delay(500);
+        webSocket.loop();
+        setPower(RFpowerNow);
+        tft.fillRect(0, 228 - 5, 480, 320 - 228 + 5, TFT_BLACK);
+        allStepperInfotoBeRedrawn = true;
+        displayStepperInfo(150, 260, currentStepperPosition, 0, true);
+        displaySetMode(currentModeName, 52, 236, TFT_WHITE, TFT_LIGHTGREY, 2, false, true);
     }
 }
