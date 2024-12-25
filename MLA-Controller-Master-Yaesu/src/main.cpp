@@ -14,9 +14,6 @@ PNG png;
 // https://notisrac.github.io/FileToCArray/
 #include "yaesuSplash.h" // Image is stored here in an 8-bit array
 
-
-
-
 int xRectangle; // TO BE REPLACED LATER WITH NUMBERS
 int wRectangle; // TO BE REPLACED LATER WITH NUMBERS
 // Display Related
@@ -73,6 +70,8 @@ char *formatFrequencyForConsoleOutput(uint64_t vfo);
 void GetTunedStatusFromSlave();
 void drawVariableCapacitor(int x, int y, float scale, uint16_t color);
 String formatStepsToGoForConsole(int32_t value);
+void setNewPositionForCurrentVFOfrequency(uint32_t targetFrequency);
+bool VFOfrequencyIsInAdmissibleRange(unsigned long frequency);
 // bool freqIsOutOfRange = false;
 // bool freqBackInRange = true;
 // bool allStepperInfotoBeRedrawn = false;
@@ -594,132 +593,129 @@ void setFrequ(long frequ)
 void displayWelcomeScreen(int duration, const char *version, const char *date)
 {
 
-  // Center coordinates
-  int centerX = tft.width() / 2;  // X coordinate of the center
-  int centerY = tft.height() / 2; // Y coordinate of the center
+    // Center coordinates
+    int centerX = tft.width() / 2;  // X coordinate of the center
+    int centerY = tft.height() / 2; // Y coordinate of the center
 
-  // Circle parameters
-  const int INITIAL_RADIUS = 10;
-  const int GAP = 25;
-  const int MAX_RADIUS = centerX; // Max radius based on screen width
-  const int CIRCLE_THICKNESS = 5; // Thickness of the circle
+    // Circle parameters
+    const int INITIAL_RADIUS = 10;
+    const int GAP = 25;
+    const int MAX_RADIUS = centerX; // Max radius based on screen width
+    const int CIRCLE_THICKNESS = 5; // Thickness of the circle
 
-  // Text Y positions
-  const int TEXT_Y_WELCOME = 80;
-  const int TEXT_Y_CONTROLLER = 140;
-  const int TEXT_Y_VERSION = 200;
+    // Text Y positions
+    const int TEXT_Y_WELCOME = 80;
+    const int TEXT_Y_CONTROLLER = 140;
+    const int TEXT_Y_VERSION = 200;
 
-  // Erase color
-  uint16_t eraseColor = TFT_BLACK;
+    // Erase color
+    uint16_t eraseColor = TFT_BLACK;
 
-  // Calculate the number of circles
-  int numCircles = (MAX_RADIUS - INITIAL_RADIUS) / GAP + 1;
-  int diameters[numCircles];
+    // Calculate the number of circles
+    int numCircles = (MAX_RADIUS - INITIAL_RADIUS) / GAP + 1;
+    int diameters[numCircles];
 
-  // Populate the diameter array
-  for (int i = 0; i < numCircles; i++)
-  {
-    diameters[i] = INITIAL_RADIUS + i * GAP;
-  }
-
-  // Draw the splash screen text
-  tft.setFreeFont(&FreeMonoBold18pt7b);
-  int xWelcome = (tft.width() - tft.textWidth("Welcome To")) / 2;
-  tft.setCursor(xWelcome, TEXT_Y_WELCOME);
-  tft.print("Welcome To");
-
-  int xController = (tft.width() - tft.textWidth("HB9IIU MLA CONTROLLER")) / 2;
-  tft.setCursor(xController, TEXT_Y_CONTROLLER);
-  tft.print("HB9IIU MLA CONTROLLER");
-
-  // Format the version string
-  char versionText[50];
-  snprintf(versionText, sizeof(versionText), "Version %s", version);
-
-  // Format the date string
-  char versionDate[50];
-  snprintf(versionDate, sizeof(versionDate), "%s", date);
-
-  // Set font for the version number and date
-  tft.setFreeFont(&FreeMonoBold12pt7b);
-  int xVersion = (tft.width() - tft.textWidth(versionText)) / 2;
-  int xDate = (tft.width() - tft.textWidth(versionDate)) / 2;
-
-  // Draw version and date text
-  tft.setCursor(xVersion, TEXT_Y_VERSION);
-  tft.print(versionText);
-  tft.setCursor(xDate, TEXT_Y_VERSION + 50);
-  tft.print(versionDate);
-
-  // Initialize random seed
-  randomSeed(analogRead(0)); // Use an analog pin to seed random for better randomness
-
-  // Display concentric circles with animation
-  for (int j = 0; j < 3; j++)
-  {
-    // Draw concentric circles with random colors
+    // Populate the diameter array
     for (int i = 0; i < numCircles; i++)
     {
-      // Generate a random color
-      uint16_t randomColor = tft.color565(random(0, 256), random(0, 256), random(0, 256));
-
-      // Draw multiple concentric circles to create thickness
-      for (int thickness = 0; thickness < CIRCLE_THICKNESS; thickness++)
-      {
-        tft.drawCircle(centerX, centerY, diameters[i] + thickness, randomColor);
-      }
-      // Redraw the splash screen text
-      tft.setFreeFont(&FreeMonoBold18pt7b);
-      tft.setCursor(xWelcome, TEXT_Y_WELCOME);
-      tft.print("Welcome To");
-      tft.setCursor(xController, TEXT_Y_CONTROLLER);
-      tft.print("HB9IIU MLA CONTROLLER");
-      tft.setFreeFont(&FreeMonoBold12pt7b);
-      tft.setCursor(xVersion, TEXT_Y_VERSION);
-      tft.print(versionText);
-      tft.setCursor(xDate, TEXT_Y_VERSION + 50);
-      tft.print(versionDate);
+        diameters[i] = INITIAL_RADIUS + i * GAP;
     }
 
-    // Erase circles by drawing them in the erase color
-    for (int i = 0; i < numCircles; i++)
+    // Draw the splash screen text
+    tft.setFreeFont(&FreeMonoBold18pt7b);
+    int xWelcome = (tft.width() - tft.textWidth("Welcome To")) / 2;
+    tft.setCursor(xWelcome, TEXT_Y_WELCOME);
+    tft.print("Welcome To");
+
+    int xController = (tft.width() - tft.textWidth("HB9IIU MLA CONTROLLER")) / 2;
+    tft.setCursor(xController, TEXT_Y_CONTROLLER);
+    tft.print("HB9IIU MLA CONTROLLER");
+
+    // Format the version string
+    char versionText[50];
+    snprintf(versionText, sizeof(versionText), "Version %s", version);
+
+    // Format the date string
+    char versionDate[50];
+    snprintf(versionDate, sizeof(versionDate), "%s", date);
+
+    // Set font for the version number and date
+    tft.setFreeFont(&FreeMonoBold12pt7b);
+    int xVersion = (tft.width() - tft.textWidth(versionText)) / 2;
+    int xDate = (tft.width() - tft.textWidth(versionDate)) / 2;
+
+    // Draw version and date text
+    tft.setCursor(xVersion, TEXT_Y_VERSION);
+    tft.print(versionText);
+    tft.setCursor(xDate, TEXT_Y_VERSION + 50);
+    tft.print(versionDate);
+
+    // Initialize random seed
+    randomSeed(analogRead(0)); // Use an analog pin to seed random for better randomness
+
+    // Display concentric circles with animation
+    for (int j = 0; j < 3; j++)
     {
-      for (int thickness = 0; thickness < CIRCLE_THICKNESS; thickness++)
-      {
-        tft.drawCircle(centerX, centerY, diameters[i] + thickness, eraseColor);
-      }
-      // Redraw the splash screen text
-      tft.setFreeFont(&FreeMonoBold18pt7b);
-      tft.setCursor(xWelcome, TEXT_Y_WELCOME);
-      tft.print("Welcome To");
-      tft.setCursor(xController, TEXT_Y_CONTROLLER);
-      tft.print("HB9IIU MLA CONTROLLER");
-      tft.setFreeFont(&FreeMonoBold12pt7b);
-      tft.setCursor(xVersion, TEXT_Y_VERSION);
-      tft.print(versionText);
-      tft.setCursor(xDate, TEXT_Y_VERSION + 50);
-      tft.print(versionDate);
-    }
-  }
-  // Redraw the splash screen text
-  tft.setFreeFont(&FreeMonoBold18pt7b);
-  tft.setCursor(xWelcome, TEXT_Y_WELCOME);
-  tft.print("Welcome To");
-  tft.setCursor(xController, TEXT_Y_CONTROLLER);
-  tft.print("HB9IIU MLA CONTROLLER");
-  tft.setFreeFont(&FreeMonoBold12pt7b);
-  tft.setCursor(xVersion, TEXT_Y_VERSION);
-  tft.print(versionText);
-  tft.setCursor(xDate, TEXT_Y_VERSION + 50);
-  tft.print(versionDate);
+        // Draw concentric circles with random colors
+        for (int i = 0; i < numCircles; i++)
+        {
+            // Generate a random color
+            uint16_t randomColor = tft.color565(random(0, 256), random(0, 256), random(0, 256));
 
-  // Delay before clearing the screen
-  delay(1500);
-  tft.fillScreen(TFT_BLACK); // Clear the screen
+            // Draw multiple concentric circles to create thickness
+            for (int thickness = 0; thickness < CIRCLE_THICKNESS; thickness++)
+            {
+                tft.drawCircle(centerX, centerY, diameters[i] + thickness, randomColor);
+            }
+            // Redraw the splash screen text
+            tft.setFreeFont(&FreeMonoBold18pt7b);
+            tft.setCursor(xWelcome, TEXT_Y_WELCOME);
+            tft.print("Welcome To");
+            tft.setCursor(xController, TEXT_Y_CONTROLLER);
+            tft.print("HB9IIU MLA CONTROLLER");
+            tft.setFreeFont(&FreeMonoBold12pt7b);
+            tft.setCursor(xVersion, TEXT_Y_VERSION);
+            tft.print(versionText);
+            tft.setCursor(xDate, TEXT_Y_VERSION + 50);
+            tft.print(versionDate);
+        }
+
+        // Erase circles by drawing them in the erase color
+        for (int i = 0; i < numCircles; i++)
+        {
+            for (int thickness = 0; thickness < CIRCLE_THICKNESS; thickness++)
+            {
+                tft.drawCircle(centerX, centerY, diameters[i] + thickness, eraseColor);
+            }
+            // Redraw the splash screen text
+            tft.setFreeFont(&FreeMonoBold18pt7b);
+            tft.setCursor(xWelcome, TEXT_Y_WELCOME);
+            tft.print("Welcome To");
+            tft.setCursor(xController, TEXT_Y_CONTROLLER);
+            tft.print("HB9IIU MLA CONTROLLER");
+            tft.setFreeFont(&FreeMonoBold12pt7b);
+            tft.setCursor(xVersion, TEXT_Y_VERSION);
+            tft.print(versionText);
+            tft.setCursor(xDate, TEXT_Y_VERSION + 50);
+            tft.print(versionDate);
+        }
+    }
+    // Redraw the splash screen text
+    tft.setFreeFont(&FreeMonoBold18pt7b);
+    tft.setCursor(xWelcome, TEXT_Y_WELCOME);
+    tft.print("Welcome To");
+    tft.setCursor(xController, TEXT_Y_CONTROLLER);
+    tft.print("HB9IIU MLA CONTROLLER");
+    tft.setFreeFont(&FreeMonoBold12pt7b);
+    tft.setCursor(xVersion, TEXT_Y_VERSION);
+    tft.print(versionText);
+    tft.setCursor(xDate, TEXT_Y_VERSION + 50);
+    tft.print(versionDate);
+
+    // Delay before clearing the screen
+    delay(1500);
+    tft.fillScreen(TFT_BLACK); // Clear the screen
 }
-
-
-
 
 void updateWiFiWidget(int x, int y, int radius, float sizePercentage, int rssi, bool forceredraw)
 {
@@ -1113,13 +1109,13 @@ void displayRESONANCEfrequency(unsigned long frequency, int startX, int yPositio
     }
 }
 
-void displaySetMode(String mode, int x, int y, uint16_t fontColor, uint16_t rectColor, uint8_t rectLineWidth, bool inverted)
+void displaySetMode(String mode, int x, int y, uint16_t fontColor, uint16_t rectColor, uint8_t rectLineWidth, bool inverted, bool redraw)
 {
 
     static String lastCurrentModeName; // Will store the current mode value
 
     // skip if same
-    if (currentModeName == lastCurrentModeName)
+    if (currentModeName == lastCurrentModeName && redraw==false)
     {
         return;
     }
@@ -1374,7 +1370,7 @@ void displayStepperInfo(int x, int y, long currentPos, long stepsToGo, bool forc
         memset(previousStepsToGoArray, ' ', sizeof(previousStepsToGoArray) - 1);
         previousStepsToGoArray[sizeof(previousStepsToGoArray) - 1] = '\0'; // to reset
 
-        xPositions[0] = x + 160;
+        xPositions[0] = x + 150;
         xPositions[1] = xPositions[0] + digitWidth;
         xPositions[2] = xPositions[1] + digitWidth;
         xPositions[3] = xPositions[2] + digitWidth - gap;
@@ -1462,8 +1458,8 @@ void displayOutOfRangeWarning(int x, int y)
 
         forceRedwrawOutofRangeWarning = false; // Reset redraw flag
         allStepperInfotoBeRedrawn = true;
- isInitiated = true;
-    }       
+        isInitiated = true;
+    }
 
     // Blinking logic
     static unsigned long previousMillis = 0; // Tracks the last time text visibility changed
@@ -1493,48 +1489,138 @@ void displayOutOfRangeWarning(int x, int y)
     }
 }
 
-
-
-
 void pngDraw(PNGDRAW *pDraw)
 {
-  uint16_t lineBuffer[480];
-  png.getLineAsRGB565(pDraw, lineBuffer, PNG_RGB565_BIG_ENDIAN, 0xffffffff);
-  tft.pushImage(0, 0 + pDraw->y, pDraw->iWidth, 1, lineBuffer);
+    uint16_t lineBuffer[480];
+    png.getLineAsRGB565(pDraw, lineBuffer, PNG_RGB565_BIG_ENDIAN, 0xffffffff);
+    tft.pushImage(0, 0 + pDraw->y, pDraw->iWidth, 1, lineBuffer);
 }
-
-
 
 void displaySplashScreen(int duration)
 {
 
-  // https://notisrac.github.io/FileToCArray/
-  int16_t rc = png.openFLASH((uint8_t *)yaesuSplash, sizeof(yaesuSplash), pngDraw);
+    // https://notisrac.github.io/FileToCArray/
+    int16_t rc = png.openFLASH((uint8_t *)yaesuSplash, sizeof(yaesuSplash), pngDraw);
 
-  if (rc == PNG_SUCCESS)
-  {
-    Serial.println("Successfully opened png file");
-    Serial.printf("image specs: (%d x %d), %d bpp, pixel type: %d\n", png.getWidth(), png.getHeight(), png.getBpp(), png.getPixelType());
-    tft.startWrite();
-    uint32_t dt = millis();
-    rc = png.decode(NULL, 0);
-    Serial.print(millis() - dt);
-    Serial.println("ms");
-    tft.endWrite();
-  }
-  delay(duration);
-      tft.fillScreen(TFT_BLACK);
+    if (rc == PNG_SUCCESS)
+    {
+        Serial.println("Successfully opened png file");
+        Serial.printf("image specs: (%d x %d), %d bpp, pixel type: %d\n", png.getWidth(), png.getHeight(), png.getBpp(), png.getPixelType());
+        tft.startWrite();
+        uint32_t dt = millis();
+        rc = png.decode(NULL, 0);
+        Serial.print(millis() - dt);
+        Serial.println("ms");
+        tft.endWrite();
+    }
+    delay(duration);
+    tft.fillScreen(TFT_BLACK);
 }
 
+void displayProgressBar(int x, int y, int givenWidth, int height, int duration)
+{
+    // Track the total start time
+    unsigned long overallStartTime = millis();
 
+    // Clear the area for the progress bar
+    tft.fillRect(0, 220, 480, 320 - 200, TFT_BLACK);
 
+    // clearBottomOfDisplay();
 
+    int gap = 2;       // Fixed width of the gap between rectangles
+    int rectWidth = 4; // Fixed width of each rectangle
 
+    int totalBarWidth = rectWidth + gap;            // Width occupied by one rectangle and one gap
+    int numRectangles = givenWidth / totalBarWidth; // Total number of rectangles that fit
 
+    int lastRectangleRightEdge = x + (numRectangles * totalBarWidth - gap);
+    int frameWidth = lastRectangleRightEdge - x;
 
+    // Draw the frame for the progress bar
+    tft.drawRect(x, y, frameWidth, height, TFT_WHITE); // Draw the white frame
 
+    // Helper function to interpolate color
+    auto interpolateColor = [](int progress) -> uint16_t
+    {
+        int red, green, blue = 0; // Initialize color components
 
+        if (progress <= 80)
+        {
+            // Red to Yellow transition (0% to 80%)
+            red = 255;                     // Full red
+            green = (progress * 255) / 80; // Gradually increase green to 255 at 80%
+        }
+        else
+        {
+            // Yellow to Green transition (80% to 100%)
+            red = 255 - ((progress - 80) * 255) / 20; // Gradually decrease red to 0 at 100%
+            green = 255;                              // Full green
+        }
 
+        return tft.color565(red, green, blue); // Return the RGB color in 565 format
+    };
+
+    unsigned long startTime = overallStartTime;
+    unsigned long currentTime = startTime;
+    unsigned long lastBlinkTime = startTime; // Track time for blinking
+    bool blinkState = true;                  // Toggle for blinking text
+
+    tft.setTextDatum(MC_DATUM);
+    tft.setFreeFont(&arial10pt7b);
+
+    // Draw each rectangle with interpolated color
+    for (int i = 0; i < numRectangles; i++)
+    {
+        // Calculate the progress percentage
+        int progress = (i * 100) / numRectangles;
+
+        // Get the interpolated color for this progress
+        uint16_t color = interpolateColor(progress);
+
+        // Draw the rectangle with gradient color, offset by 1 pixel to avoid overlapping the left frame
+        tft.fillRect(x + i * totalBarWidth + 1, y + 1, rectWidth - 1, height - 2, color);
+
+        // Check if it's time to blink the text
+        currentTime = millis();
+        if (currentTime - lastBlinkTime >= 400)
+        {
+            lastBlinkTime = currentTime;
+            blinkState = !blinkState; // Toggle blink state
+
+            // Draw the text in the current blink state
+            tft.setTextColor(blinkState ? TFT_LIGHTGREY : TFT_BLACK, TFT_BLACK);
+            tft.drawString("Stepper Moving Capacitor To New Position", 240, y - 20);
+        }
+
+        // Wait for the segment's time duration
+        while (millis() - startTime < duration / numRectangles)
+        {
+            // Keep the loop responsive
+            yield();
+        }
+        startTime = millis();
+    }
+
+    // Calculate the total elapsed time
+    unsigned long totalElapsedTime = millis() - overallStartTime;
+
+    // Print the timing details to the console
+    Serial.println();
+    Serial.print("Duration argument: ");
+    Serial.print(duration);
+    Serial.println(" ms");
+
+    Serial.print("Real duration: ");
+    Serial.print(totalElapsedTime);
+    Serial.println(" ms");
+
+    Serial.print("Difference: ");
+    Serial.print((long)totalElapsedTime - duration);
+    Serial.println(" ms");
+
+        // Clear the area for the progress bar
+    tft.fillRect(0, 220, 480, 320 - 200, TFT_BLACK);
+}
 
 /*
 void displayOutofRangeMessage(int x, int y)
@@ -1705,6 +1791,60 @@ void getStepperPositionForCurrentVFOfrequency(uint32_t currentVFOfrequency)
     }
 }
 
+void TuneOnClick()
+{
+    if (deltaSteps == 0)
+    {
+        Serial.println("No Need To Tune; already on the right position");
+        return;
+    }
+    // Check if the frequency is outside the defined ranges
+    if (VFOfrequencyIsInAdmissibleRange(CurrentVFOFrequency) == false)
+    {
+        Serial.println("Frequency is outside the defined ranges.");
+        return; // Return if outside both ranges
+    }
+
+    setNewPositionForCurrentVFOfrequency(CurrentVFOFrequency);
+    //redraw mode
+    Serial.print ("I am here:");
+    Serial.println(currentModeName);
+    GetTunedStatusFromSlave(); // just to get the new stepper position
+    //  cheating a bit because GetTunedStatusFromSlave will return a slightly different value of couple of Hz
+
+        displayRESONANCEfrequency(CurrentVFOFrequency, 121, 176, false);
+
+    // deltaSteps = 0;
+    displayStepperInfo(150, 260, currentStepperPosition, 0,true);
+    displaySetMode(currentModeName, 52, 236, TFT_WHITE, TFT_LIGHTGREY, 2, false,true);
+}
+void setNewPositionForCurrentVFOfrequency(uint32_t targetFrequency)
+{
+
+    Serial.print("Sending command to Slave to move stepper to position for frequency: ");
+    Serial.println(formatFrequencyForConsoleOutput(targetFrequency));
+
+    String response = sendCommandToSlave("SetNewPositionForCurrentVFOfrequency", String(targetFrequency));
+
+    // Parse the response to extract estimated duration
+    int separatorIndex = response.indexOf(',');
+
+    uint32_t targetStepperPosition = response.substring(0, separatorIndex).toInt();
+    long estimated_movement_duration_in_microseconds;
+
+    estimated_movement_duration_in_microseconds = response.substring(separatorIndex + 1).toInt();
+
+    Serial.print("Received Target Position:");
+    Serial.println(targetStepperPosition);
+
+    Serial.print("Estimated movement duration: ");
+    Serial.print(estimated_movement_duration_in_microseconds);
+    Serial.println(" microseconds");
+    Serial.println("Animating Progress Bar");
+    displayProgressBar(20, 250, 435, 50, estimated_movement_duration_in_microseconds);
+
+
+}
 //--------------------------- HELPER FUNCTIONS ------------------------------------
 String formatStepperPosForConsoleOutput(uint32_t value)
 {
@@ -1854,6 +1994,20 @@ bool VFOfrequencyIsInAdmissibleRange(unsigned long frequency)
     return false; // Frequency is outside of admissible ranges
 }
 
+bool isTouchPointInRegion(int t_x, int t_y, int x1, int y1, int x2, int y2)
+{
+    // Ensure x1 is the leftmost and x2 is the rightmost
+    int left = min(x1, x2);
+    int right = max(x1, x2);
+
+    // Ensure y1 is the topmost and y2 is the bottommost
+    int top = min(y1, y2);
+    int bottom = max(y1, y2);
+
+    // Check if the point (t_x, t_y) is within the rectangle
+    return (t_x >= left && t_x <= right && t_y >= top && t_y <= bottom);
+}
+
 //------------------------- END OF HELPER FUNCTIONS ------------------------------------
 
 void setup()
@@ -1883,7 +2037,7 @@ void setup()
 
     // Initialize TFT screen
     initTFTscreen();
-  displayWelcomeScreen(1500, VERSION, RELEASE_DATE);
+    // displayWelcomeScreen(1500, VERSION, RELEASE_DATE);
 
     // Check and apply calibration data
     checkAndApplyTFTCalibrationData(false);
@@ -1894,7 +2048,7 @@ void setup()
     delay(2000);
     // Clear display
     tft.fillScreen(TFT_BLACK);
-    displaySplashScreen(2500);
+    // displaySplashScreen(2500);
     updateWiFiWidget(53, 45, 72, 50, WiFi.RSSI(), false);
     GetTunedStatusFromSlave(); // to get current stepper pos and theoretical resonance freq
 }
@@ -1921,7 +2075,7 @@ void loop()
     }
 
     displayVFOfrequency(CurrentVFOFrequency, 121, 68, false);
-    displaySetMode(currentModeName, 52, 236, TFT_WHITE, TFT_LIGHTGREY, 2, false);
+    displaySetMode(currentModeName, 52, 236, TFT_WHITE, TFT_LIGHTGREY, 2, false,false);
     displaySetRFpower(setRFPower, 52, 166, TFT_WHITE, TFT_LIGHTGREY, 2, false);
     displayRXTXstatus(52, 120, PTTstatus);
     displayRESONANCEfrequency(theoreticalResonanceFrequency, 121, 176, false);
@@ -1943,5 +2097,42 @@ void loop()
         {
             getStepperPositionForCurrentVFOfrequency(CurrentVFOFrequency); // Reset to prevent repetitive triggering
         }
+    }
+
+    static unsigned long previousMillisForKeypadScan = 0;
+    uint16_t t_x = 9999, t_y = 9999; // To store the touch coordinate
+
+    if (millis() - previousMillisForKeypadScan > 100)
+    {
+        // Detect if there’s a valid touch
+        if (tft.getTouch(&t_x, &t_y))
+        {
+            //  Check for specific touch regions
+            /*
+            Serial.print("Touch detected at x");
+            Serial.print(t_x);
+            Serial.print(" y");
+            Serial.println(t_y);
+            */
+            // Bottom Section
+            if (isTouchPointInRegion(t_x, t_y, 145, 213, 480, 320))
+            {
+                Serial.print("Touch detected at bottom third");
+                TuneOnClick();
+            }
+            // Upper Section
+            if (isTouchPointInRegion(t_x, t_y, 145, 0, 480, 213))
+            {
+                Serial.print("Touch detected at upper third");
+
+                // SWRtest = true;
+            }
+            // WiFi Widget
+            if (isTouchPointInRegion(t_x, t_y, 0, 0, 100, 100))
+            { // Bottom third of the screen
+                Serial.print("Touch detected on WifiIcon");
+            }
+        }
+        previousMillisForKeypadScan = millis();
     }
 }
