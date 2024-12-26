@@ -130,7 +130,13 @@ def radio_query_thread(port):
                 while True:
                     time.sleep(.05)
                     if InsertedCATcommand:
-                        send_command(ser, InsertedCATcommand)
+                        ser.flush()
+                        print ("Received command", InsertedCATcommand)
+                        response =send_command(ser, InsertedCATcommand)
+                        print ("Response: ",response)
+                        time.sleep(.1) # we need to implement something more robust here to check if command passed
+                        response =send_command(ser, InsertedCATcommand)
+                        print ("Response: ",response)
                         InsertedCATcommand = None
 
                     # Query VFO frequency and mode
@@ -162,8 +168,8 @@ def radio_query_thread(port):
                             response = send_command(ser, CAT_COMMANDS["SWR"])
                             if len(response) >= 6 and response.startswith("RM"):
                                 # SWR = round(float(response[3:6]) / 100, 2)
-                                print(response[3:6])
-                                SWR = swr_from_swr_cat_value(int(response[3:6]))
+                                #print(response[3:6])
+                                SWR = swr_from_swr_cat_value(int(response[3:6])) # formulae derived from flrig source code   https://sourceforge.net/projects/fldigi/files/flrig/
                                 print(SWR)
                             else:
                                 print(f"[WARNING] Invalid SWR response: {response}")
