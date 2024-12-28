@@ -1,3 +1,12 @@
+
+
+
+https://wiki.seeedstudio.com/RS-232_To_TTL_Conveter-MAX3232IDR/
+
+
+
+
+
 # MLA-Controller-Slave
 
 This repository contains the code for the **ESP32 microcontroller** functioning as the **MASTER** device in a radio control system. 

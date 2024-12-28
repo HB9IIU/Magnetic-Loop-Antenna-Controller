@@ -9,11 +9,6 @@
 #include "Digital_7Mono40pt7b.h"
 #include "arial10pt7b.h"
 #include "technology_bold18pt7b.h"
-#include <PNGdec.h> // Include the PNG decoder library
-
-PNG png;
-// https://notisrac.github.io/FileToCArray/
-#include "yaesuSplash.h" // Image is stored here in an 8-bit array
 
 int xRectangle; // TO BE REPLACED LATER WITH NUMBERS
 int wRectangle; // TO BE REPLACED LATER WITH NUMBERS
@@ -498,6 +493,48 @@ void displayWelcomeScreen(int duration, const char *version, const char *date)
     tft.setCursor(xController, TEXT_Y_CONTROLLER);
     tft.print("HB9IIU MLA CONTROLLER");
     tft.setFreeFont(&FreeMonoBold12pt7b);
+    tft.setCursor(xVersion, TEXT_Y_VERSION);
+    tft.print(versionText);
+    tft.setCursor(xDate, TEXT_Y_VERSION + 50);
+    tft.print(versionDate);
+
+    // Delay before clearing the screen
+    delay(1500);
+    tft.fillScreen(TFT_BLACK); // Clear the screen
+}
+void displayWelcomeScreenSimple(int duration, const char *version, const char *date)
+{
+
+    // Text Y positions
+    const int TEXT_Y_WELCOME = 80;
+    const int TEXT_Y_CONTROLLER = 140;
+    const int TEXT_Y_VERSION = 200;
+
+    // Draw the splash screen text
+    tft.setFreeFont(&FreeMonoBold18pt7b);
+    tft.setTextColor(TFT_GOLD);
+    int xWelcome = (tft.width() - tft.textWidth("Welcome To")) / 2;
+    tft.setCursor(xWelcome, TEXT_Y_WELCOME);
+    tft.print("Welcome To");
+
+    int xController = (tft.width() - tft.textWidth("HB9IIU MLA CONTROLLER")) / 2;
+    tft.setCursor(xController, TEXT_Y_CONTROLLER);
+    tft.print("HB9IIU MLA CONTROLLER");
+
+    // Format the version string
+    char versionText[50];
+    snprintf(versionText, sizeof(versionText), "Version %s", version);
+
+    // Format the date string
+    char versionDate[50];
+    snprintf(versionDate, sizeof(versionDate), "%s", date);
+
+    // Set font for the version number and date
+    tft.setFreeFont(&FreeMonoBold12pt7b);
+    int xVersion = (tft.width() - tft.textWidth(versionText)) / 2;
+    int xDate = (tft.width() - tft.textWidth(versionDate)) / 2;
+
+    // Draw version and date text
     tft.setCursor(xVersion, TEXT_Y_VERSION);
     tft.print(versionText);
     tft.setCursor(xDate, TEXT_Y_VERSION + 50);
@@ -1287,34 +1324,6 @@ void displayOutOfRangeWarning(int x, int y)
     }
 }
 
-void pngDraw(PNGDRAW *pDraw)
-{
-    uint16_t lineBuffer[480];
-    png.getLineAsRGB565(pDraw, lineBuffer, PNG_RGB565_BIG_ENDIAN, 0xffffffff);
-    tft.pushImage(0, 0 + pDraw->y, pDraw->iWidth, 1, lineBuffer);
-}
-
-void displaySplashScreen(int duration)
-{
-
-    // https://notisrac.github.io/FileToCArray/
-    int16_t rc = png.openFLASH((uint8_t *)yaesuSplash, sizeof(yaesuSplash), pngDraw);
-
-    if (rc == PNG_SUCCESS)
-    {
-        Serial.println("Successfully opened png file");
-        Serial.printf("image specs: (%d x %d), %d bpp, pixel type: %d\n", png.getWidth(), png.getHeight(), png.getBpp(), png.getPixelType());
-        tft.startWrite();
-        uint32_t dt = millis();
-        rc = png.decode(NULL, 0);
-        Serial.print(millis() - dt);
-        Serial.println("ms");
-        tft.endWrite();
-    }
-    delay(duration);
-    tft.fillScreen(TFT_BLACK);
-}
-
 void displayProgressBar(int x, int y, int givenWidth, int height, int duration)
 {
     // Track the total start time
@@ -2095,10 +2104,9 @@ void setup()
     // Initialize TFT screen
     initTFTscreen();
     // displayWelcomeScreen(1500, VERSION, RELEASE_DATE);
-
+    displayWelcomeScreenSimple(1500, VERSION, RELEASE_DATE);
     // Check and apply TFT display calibration data
     checkAndApplyTFTCalibrationData(false);
-    // Wifi to AP HB9IIU-MLA
 
     establishWIFIconnectionWithSlave();
     // Start Bluetooth
@@ -2112,13 +2120,14 @@ void setup()
         printOnTFT("Rebooting !!!", TFT_YELLOW, TFT_BLACK);
         ESP.restart(); // Reboot the ESP
     }
-    printOnTFT("Successful Connection to BLE CAT Server", TFT_GREEN, TFT_BLACK);
+    printOnTFT("Successful Connection to Server", TFT_GREEN, TFT_BLACK);
+    printOnTFT("", TFT_GREEN, TFT_BLACK);
+    printOnTFT("       WE CAN START !!!", TFT_GREEN, TFT_BLACK);
 
     // Clear display
     delay(2000);
     tft.fillScreen(TFT_BLACK);
-    
-    //displaySplashScreen(2500);
+
     updateWiFiWidget(53, 45, 72, 50, WiFi.RSSI(), false);
     GetTunedStatusFromSlave(); // to get current stepper pos and theoretical resonance freq
 }
@@ -2235,7 +2244,7 @@ void loop()
         while (millis() < SWRtestStartTime + SWRtestDuration)
         {
             displayLogarithmicSWRMeter(currentSWR);
-            //Serial.println(currentSWR);
+            // Serial.println(currentSWR);
             delay(100);
         }
         setTXoff();
