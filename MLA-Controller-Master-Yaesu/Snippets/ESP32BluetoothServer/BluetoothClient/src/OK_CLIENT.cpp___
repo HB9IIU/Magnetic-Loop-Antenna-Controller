@@ -1,0 +1,125 @@
+#include <Arduino.h>
+#include "BLEDevice.h"
+
+// UUIDs for the services and characteristics
+static BLEUUID serviceUUID("4fafc201-1fb5-459e-8fcc-c5c9c331914b");
+static BLEUUID notifyCharUUID("beb5483e-36e1-4688-b7f5-ea07361b26a8");
+static BLEUUID writeCharUUID("e1245f42-568e-4a4b-ae3b-123456789abc");
+
+static boolean doConnect = false;
+static boolean connected = false;
+static BLERemoteCharacteristic *pNotifyCharacteristic = nullptr;
+static BLERemoteCharacteristic *pWriteCharacteristic = nullptr;
+static BLEAdvertisedDevice *myDevice = nullptr;
+
+static void notifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify) {
+  char value[length + 1];
+  memcpy(value, pData, length);
+  value[length] = '\0';
+  Serial.print("Notification received: ");
+  Serial.println(value);
+}
+
+class MyClientCallback : public BLEClientCallbacks {
+  void onConnect(BLEClient *pclient) {
+    Serial.println("Connected to server.");
+  }
+
+  void onDisconnect(BLEClient *pclient) {
+    connected = false;
+    Serial.println("Disconnected from server. Restarting scan...");
+    BLEDevice::getScan()->start(0);
+  }
+};
+
+bool connectToServer() {
+  Serial.println("Connecting to server...");
+  BLEClient *pClient = BLEDevice::createClient();
+  pClient->setClientCallbacks(new MyClientCallback());
+
+  if (!pClient->connect(myDevice)) {
+    Serial.println("Failed to connect to server.");
+    return false;
+  }
+
+  Serial.println("Connected to server. Retrieving service...");
+  BLERemoteService *pRemoteService = pClient->getService(serviceUUID);
+  if (!pRemoteService) {
+    Serial.println("Failed to find service.");
+    pClient->disconnect();
+    return false;
+  }
+
+  // Retrieve notification characteristic
+  pNotifyCharacteristic = pRemoteService->getCharacteristic(notifyCharUUID);
+  if (pNotifyCharacteristic && pNotifyCharacteristic->canNotify()) {
+    pNotifyCharacteristic->registerForNotify(notifyCallback);
+  }
+
+  // Retrieve write characteristic
+  pWriteCharacteristic = pRemoteService->getCharacteristic(writeCharUUID);
+  if (!pWriteCharacteristic || !pWriteCharacteristic->canWrite()) {
+    Serial.println("Failed to find writable characteristic.");
+    pClient->disconnect();
+    return false;
+  }
+
+  connected = true;
+  return true;
+}
+
+class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
+  void onResult(BLEAdvertisedDevice advertisedDevice) {
+    Serial.print("Advertised Device found: ");
+    Serial.println(advertisedDevice.toString().c_str());
+
+    if (advertisedDevice.haveServiceUUID() && advertisedDevice.isAdvertisingService(serviceUUID)) {
+      Serial.println("Matching device found. Stopping scan.");
+      BLEDevice::getScan()->stop();
+      myDevice = new BLEAdvertisedDevice(advertisedDevice);
+      doConnect = true;
+    }
+  }
+};
+
+void resetScan() {
+  BLEScan *pBLEScan = BLEDevice::getScan();
+  pBLEScan->stop();
+  pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
+  pBLEScan->setInterval(1349);
+  pBLEScan->setWindow(449);
+  pBLEScan->setActiveScan(true);
+  pBLEScan->start(0, false);
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(2000);
+  Serial.println("Starting BLE Client...");
+
+  BLEDevice::init("");
+  resetScan();
+}
+
+void loop() {
+  if (doConnect) {
+    if (connectToServer()) {
+      Serial.println("Connected to server successfully.");
+    } else {
+      Serial.println("Connection failed. Restarting scan...");
+      resetScan();
+    }
+    doConnect = false;
+  }
+
+  // Send commands periodically if connected
+  static unsigned long lastSendTime = 0;
+  if (connected && millis() - lastSendTime > 1000) {
+    std::string command = "Hello, Server!";
+    pWriteCharacteristic->writeValue(command);
+    Serial.println("Command sent to server: " + String(command.c_str()));
+    lastSendTime = millis();
+  }
+
+  delay(20);
+}
