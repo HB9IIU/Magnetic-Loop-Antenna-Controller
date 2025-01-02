@@ -10,7 +10,9 @@
 // UART settings
 #define BAUD_RATE 38400
 
-const unsigned long updateInterval = 50; // Update every 100 ms
+#define RED_LED_PIN 4
+#define GREEN_LED_PIN 2
+const unsigned long updateInterval = 25; // Update every 100 ms
 
 // Radio state variables
 unsigned long VFOFrequency = 0; // Store frequency as an unsigned long
@@ -113,25 +115,40 @@ String modeCodeToName(char modeCode)
 }
 
 // Function to translate mode name to mode code
-char modeNameToModeCode(String modeName) {
-  if (modeName == "LSB") return '1';
-  if (modeName == "USB") return '2';
-  if (modeName == "CW-U") return '3';
-  if (modeName == "FM") return '4';
-  if (modeName == "AM") return '5';
-  if (modeName == "RTTY-L") return '6';
-  if (modeName == "CW-L") return '7';
-  if (modeName == "DATA-L") return '8';
-  if (modeName == "RTTY-U") return '9';
-  if (modeName == "DATA-FM") return 'A';
-  if (modeName == "FM-N") return 'B';
-  if (modeName == "DATA-U") return 'C';
-  if (modeName == "AM-N") return 'D';
-  if (modeName == "PSK") return 'E';
-  if (modeName == "DATA-FM-N") return 'F';
+char modeNameToModeCode(String modeName)
+{
+  if (modeName == "LSB")
+    return '1';
+  if (modeName == "USB")
+    return '2';
+  if (modeName == "CW-U")
+    return '3';
+  if (modeName == "FM")
+    return '4';
+  if (modeName == "AM")
+    return '5';
+  if (modeName == "RTTY-L")
+    return '6';
+  if (modeName == "CW-L")
+    return '7';
+  if (modeName == "DATA-L")
+    return '8';
+  if (modeName == "RTTY-U")
+    return '9';
+  if (modeName == "DATA-FM")
+    return 'A';
+  if (modeName == "FM-N")
+    return 'B';
+  if (modeName == "DATA-U")
+    return 'C';
+  if (modeName == "AM-N")
+    return 'D';
+  if (modeName == "PSK")
+    return 'E';
+  if (modeName == "DATA-FM-N")
+    return 'F';
   return 'X'; // Unknown mode
 }
-
 
 // Function to parse CAT responses
 void parseCATResponses()
@@ -192,7 +209,7 @@ bool deviceConnected = false;
 bool isAdvertising = false;
 
 bool sendAllVariables = false; // Flag to trigger sending all variables once
-/*
+
 class MyWriteCallback : public BLECharacteristicCallbacks
 {
   void onWrite(BLECharacteristic *pCharacteristic)
@@ -210,16 +227,66 @@ class MyWriteCallback : public BLECharacteristicCallbacks
         String command = receivedData.substring(0, separatorIndex);
         String data = receivedData.substring(separatorIndex + 1);
 
+        // Handle specific commands
         if (command == "SETFREQ")
         {
-          VFOFrequency = data.toInt();
+          unsigned long frequency = data.toInt();
+          Serial.print("Set VFO Frequency to: ");
+          Serial.println(frequency);
+
           char formattedCommand[15];
-          snprintf(formattedCommand, sizeof(formattedCommand), "FA%09lu;", VFOFrequency);
-          pendingCATCommand = String(formattedCommand);
+          snprintf(formattedCommand, sizeof(formattedCommand), "FA%09lu;", frequency);
+          Serial.print("Formatted CAT command: ");
+          Serial.println(formattedCommand);
+          sendCATCommand(formattedCommand);
         }
         else if (command == "SETMODE")
         {
-          pendingCATCommand = "MD" + data + ";";
+          Serial.print("Set Mode to: ");
+          Serial.println(data);
+
+          char modeCode = modeNameToModeCode(data);
+          if (modeCode != 'X')
+          {
+            char formattedCommand[10];
+            snprintf(formattedCommand, sizeof(formattedCommand), "MD0%c;", modeCode);
+            Serial.print("Formatted CAT command: ");
+            Serial.println(formattedCommand);
+            sendCATCommand(formattedCommand);
+          }
+          else
+          {
+            Serial.println("Invalid mode name received.");
+          }
+        }
+        else if (command == "SETPWR")
+        {
+          int power = data.toInt();
+          Serial.print("Set RF Power to: ");
+          Serial.println(power);
+
+          char formattedCommand[10];
+          snprintf(formattedCommand, sizeof(formattedCommand), "PC%03d;", power);
+          Serial.print("Formatted CAT command: ");
+          Serial.println(formattedCommand);
+          sendCATCommand(formattedCommand);
+        }
+        else if (command == "SETPTT")
+        {
+          if (data == "ON")
+          {
+            Serial.println("Set PTT to ON");
+            sendCATCommand("TX1;");
+          }
+          else if (data == "OFF")
+          {
+            Serial.println("Set PTT to OFF");
+            sendCATCommand("TX0;");
+          }
+          else
+          {
+            Serial.println("Invalid PTT state received.");
+          }
         }
         else
         {
@@ -233,179 +300,6 @@ class MyWriteCallback : public BLECharacteristicCallbacks
     }
   }
 };
-
-
-class MyWriteCallback : public BLECharacteristicCallbacks {
-  void onWrite(BLECharacteristic *pCharacteristic) {
-    std::string value = pCharacteristic->getValue();
-    if (value.length() > 0) {
-      Serial.print("Received message: ");
-      Serial.println(value.c_str());
-
-      String receivedData = String(value.c_str());
-      int separatorIndex = receivedData.indexOf(':');
-      if (separatorIndex != -1) {
-        String command = receivedData.substring(0, separatorIndex);
-        String data = receivedData.substring(separatorIndex + 1);
-
-        // Handle specific commands
-        if (command == "SETFREQ") {
-          unsigned long frequency = data.toInt();
-          Serial.print("Set VFO Frequency to: ");
-          Serial.println(frequency);
-
-          char formattedCommand[15];
-          snprintf(formattedCommand, sizeof(formattedCommand), "FA%09lu;", frequency);
-          Serial.print("Formatted CAT command: ");
-          Serial.println(formattedCommand);
-          sendCATCommand(formattedCommand);
-        } else if (command == "SETMODE") {
-          Serial.print("Set Mode to: ");
-          Serial.println(data);
-          String formattedCommand = "MD" + data + ";";
-          sendCATCommand(formattedCommand.c_str());
-        } else if (command == "SETPOWER") {
-          int power = data.toInt();
-          Serial.print("Set RF Power to: ");
-          Serial.println(power);
-
-          // Format CAT command for setting power
-          char formattedCommand[10];
-          snprintf(formattedCommand, sizeof(formattedCommand), "PC%03d;", power);
-          Serial.print("Formatted CAT command: ");
-          Serial.println(formattedCommand);
-          sendCATCommand(formattedCommand);
-        } else {
-          Serial.println("Invalid or unrecognized command format.");
-        }
-      } else {
-        Serial.println("Invalid or unrecognized command format.");
-      }
-    }
-  }
-};
-
-
-
-class MyWriteCallback : public BLECharacteristicCallbacks {
-  void onWrite(BLECharacteristic *pCharacteristic) {
-    std::string value = pCharacteristic->getValue();
-    if (value.length() > 0) {
-      Serial.print("Received message: ");
-      Serial.println(value.c_str());
-
-      String receivedData = String(value.c_str());
-      int separatorIndex = receivedData.indexOf(':');
-      if (separatorIndex != -1) {
-        String command = receivedData.substring(0, separatorIndex);
-        String data = receivedData.substring(separatorIndex + 1);
-
-        // Handle specific commands
-        if (command == "SETFREQ") {
-          unsigned long frequency = data.toInt();
-          Serial.print("Set VFO Frequency to: ");
-          Serial.println(frequency);
-
-          char formattedCommand[15];
-          snprintf(formattedCommand, sizeof(formattedCommand), "FA%09lu;", frequency);
-          Serial.print("Formatted CAT command: ");
-          Serial.println(formattedCommand);
-          sendCATCommand(formattedCommand);
-        } else if (command == "SETMODE") {
-          Serial.print("Set Mode to: ");
-          Serial.println(data);
-
-          char modeCode = modeNameToModeCode(data);
-          if (modeCode != 'X') {
-            char formattedCommand[10];
-            snprintf(formattedCommand, sizeof(formattedCommand), "MD0%c;", modeCode);
-            Serial.print("Formatted CAT command: ");
-            Serial.println(formattedCommand);
-            sendCATCommand(formattedCommand);
-          } else {
-            Serial.println("Invalid mode name received.");
-          }
-        } else {
-          Serial.println("Invalid or unrecognized command format.");
-        }
-      } else {
-        Serial.println("Invalid or unrecognized command format.");
-      }
-    }
-  }
-};
-
-*/
-
-class MyWriteCallback : public BLECharacteristicCallbacks {
-  void onWrite(BLECharacteristic *pCharacteristic) {
-    std::string value = pCharacteristic->getValue();
-    if (value.length() > 0) {
-      Serial.print("Received message: ");
-      Serial.println(value.c_str());
-
-      String receivedData = String(value.c_str());
-      int separatorIndex = receivedData.indexOf(':');
-      if (separatorIndex != -1) {
-        String command = receivedData.substring(0, separatorIndex);
-        String data = receivedData.substring(separatorIndex + 1);
-
-        // Handle specific commands
-        if (command == "SETFREQ") {
-          unsigned long frequency = data.toInt();
-          Serial.print("Set VFO Frequency to: ");
-          Serial.println(frequency);
-
-          char formattedCommand[15];
-          snprintf(formattedCommand, sizeof(formattedCommand), "FA%09lu;", frequency);
-          Serial.print("Formatted CAT command: ");
-          Serial.println(formattedCommand);
-          sendCATCommand(formattedCommand);
-        } else if (command == "SETMODE") {
-          Serial.print("Set Mode to: ");
-          Serial.println(data);
-
-          char modeCode = modeNameToModeCode(data);
-          if (modeCode != 'X') {
-            char formattedCommand[10];
-            snprintf(formattedCommand, sizeof(formattedCommand), "MD0%c;", modeCode);
-            Serial.print("Formatted CAT command: ");
-            Serial.println(formattedCommand);
-            sendCATCommand(formattedCommand);
-          } else {
-            Serial.println("Invalid mode name received.");
-          }
-        } else if (command == "SETPWR") {
-          int power = data.toInt();
-          Serial.print("Set RF Power to: ");
-          Serial.println(power);
-
-          char formattedCommand[10];
-          snprintf(formattedCommand, sizeof(formattedCommand), "PC%03d;", power);
-          Serial.print("Formatted CAT command: ");
-          Serial.println(formattedCommand);
-          sendCATCommand(formattedCommand);
-        } else if (command == "SETPTT") {
-          if (data == "ON") {
-            Serial.println("Set PTT to ON");
-            sendCATCommand("TX1;");
-          } else if (data == "OFF") {
-            Serial.println("Set PTT to OFF");
-            sendCATCommand("TX0;");
-          } else {
-            Serial.println("Invalid PTT state received.");
-          }
-        } else {
-          Serial.println("Invalid or unrecognized command format.");
-        }
-      } else {
-        Serial.println("Invalid or unrecognized command format.");
-      }
-    }
-  }
-};
-
-
 
 class MyServerCallbacks : public BLEServerCallbacks
 {
@@ -430,9 +324,14 @@ class MyServerCallbacks : public BLEServerCallbacks
 void setup()
 {
   Serial.begin(115200);
-  delay(5000);
+  delay(2000);
   Serial.println("Starting BLE Server...");
 
+  pinMode(RED_LED_PIN, OUTPUT);
+  pinMode(GREEN_LED_PIN, OUTPUT);
+
+  // Turn on the red LED to indicate power ON
+  digitalWrite(RED_LED_PIN, HIGH);
   BLEDevice::init("HB9IIU Yaesu CAT Server");
   pServer = BLEDevice::createServer();
   pServer->setCallbacks(new MyServerCallbacks());
@@ -465,6 +364,31 @@ void loop()
 {
   static unsigned long lastUpdateTime = 0;
   unsigned long currentTime = millis();
+  // Green LED logic for server status
+  static unsigned long lastBlinkTime = 0;
+  static bool greenLEDState = false;
+
+  if (deviceConnected)
+  {
+    // Server connected, solid green
+    digitalWrite(GREEN_LED_PIN, HIGH);
+  }
+  else if (isAdvertising)
+  {
+    // Server advertising, blink green
+    unsigned long currentTime = millis();
+    if (currentTime - lastBlinkTime >= 500)
+    { // Blink every 500ms
+      greenLEDState = !greenLEDState;
+      digitalWrite(GREEN_LED_PIN, greenLEDState ? HIGH : LOW);
+      lastBlinkTime = currentTime;
+    }
+  }
+  else
+  {
+    // Server inactive, green LED OFF
+    digitalWrite(GREEN_LED_PIN, LOW);
+  }
 
   // Periodically update radio state
   if (currentTime - lastUpdateTime >= updateInterval)
@@ -483,6 +407,27 @@ void loop()
       sendCATCommand(pendingCATCommand.c_str());
       pendingCATCommand = ""; // Clear the pending command
     }
+
+
+
+
+
+ if (VFOFrequency != prevVFOFrequency)
+    {
+      String message = "FREQ:" + String(VFOFrequency);
+      pNotifyCharacteristic->setValue(message.c_str());
+      pNotifyCharacteristic->notify();
+      Serial.print("Updated VFO Frequency: ");
+      Serial.println(VFOFrequency);
+      prevVFOFrequency = VFOFrequency;
+    }
+
+
+
+
+
+
+
 
     // Send all variables to the client if this flag is set
     if (deviceConnected && sendAllVariables)
@@ -516,7 +461,15 @@ void loop()
 
       sendAllVariables = false; // Reset the flag after sending
     }
-
+    if (VFOFrequency != prevVFOFrequency)
+    {
+      String message = "FREQ:" + String(VFOFrequency);
+      pNotifyCharacteristic->setValue(message.c_str());
+      pNotifyCharacteristic->notify();
+      Serial.print("Updated VFO Frequency: ");
+      Serial.println(VFOFrequency);
+      prevVFOFrequency = VFOFrequency;
+    }
     // Send notifications for changed variables
     if (deviceConnected)
     {

@@ -318,7 +318,7 @@ void establishWIFIconnectionWithSlave()
         uint16_t qualityColor;
         getWIFIinkQuality(rssi, qualityDescription, qualityColor);
         Serial.println("\nSuccessful Wifi Connection to Slave");
-        printOnTFT("Successful Connection to Slave", TFT_WHITE, TFT_BLACK);
+        printOnTFT("Successful Connection to Slave", TFT_GREEN, TFT_BLACK);
         Serial.print("Signal Quality:");
         Serial.println(qualityDescription.c_str());
         String message = "Link Quality: " + qualityDescription;
@@ -2079,6 +2079,7 @@ bool isTouchPointInRegion(int t_x, int t_y, int x1, int y1, int x2, int y2)
 void setup()
 {
     Serial.begin(115200); // Start Serial communication for debugging
+    delay(500);
     Serial.println("HB9IIU MLA Controller Starting");
     Serial.println("Sketch Size: " + String(ESP.getSketchSize()) + " bytes");
     Serial.println("Free Sketch Space: " + String(ESP.getFreeSketchSpace()) + " bytes");
@@ -2104,7 +2105,7 @@ void setup()
     // Initialize TFT screen
     initTFTscreen();
     // displayWelcomeScreen(1500, VERSION, RELEASE_DATE);
-    displayWelcomeScreenSimple(1500, VERSION, RELEASE_DATE);
+    displayWelcomeScreenSimple(2500, VERSION, RELEASE_DATE);
     // Check and apply TFT display calibration data
     checkAndApplyTFTCalibrationData(false);
 
@@ -2117,7 +2118,9 @@ void setup()
         Serial.println("No server found. Rebooting ESP...");
         printOnTFT("BLE CAT Server Not Found", TFT_RED, TFT_BLACK);
         delay(2000);
-        printOnTFT("Rebooting !!!", TFT_YELLOW, TFT_BLACK);
+        printOnTFT("", TFT_GREEN, TFT_BLACK);
+        printOnTFT("        Rebooting !!!", TFT_YELLOW, TFT_BLACK);
+        delay(1000);
         ESP.restart(); // Reboot the ESP
     }
     printOnTFT("Successful Connection to Server", TFT_GREEN, TFT_BLACK);
